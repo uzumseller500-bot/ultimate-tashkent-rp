@@ -36,6 +36,36 @@ jobs:
           godot --headless --path . --export-release "Web" build/web/index.html
           test -s build/web/index.html
           touch build/web/.nojekyll
+      - name: Publish versioned files to avoid stale browser cache
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import html
+          import os
+          import shutil
+
+          root = Path("build/web")
+          version = os.environ["GITHUB_SHA"][:12]
+          release = root / "releases" / version
+          release.mkdir(parents=True, exist_ok=True)
+          for item in list(root.iterdir()):
+              if item.name in ("releases", ".nojekyll"):
+                  continue
+              shutil.move(str(item), str(release / item.name))
+          url = f"./releases/{version}/"
+          page = (
+              '<!doctype html><html lang="uz"><head><meta charset="utf-8">'
+              '<meta name="viewport" content="width=device-width, initial-scale=1">'
+              '<title>ULTIMATE TASHKENT RP</title>'
+              f'<meta http-equiv="refresh" content="0;url={html.escape(url)}">'
+              '</head><body style="background:#142032;color:white;font:18px sans-serif;padding:2rem">'
+              '<p>ULTIMATE TASHKENT RP ochilmoqda...</p>'
+              f'<p><a style="color:#8ce0ff" href="{html.escape(url)}">O‘yinni ochish</a></p>'
+              f'<script>location.replace({url!r})</script></body></html>'
+          )
+          (root / "index.html").write_text(page, encoding="utf-8")
+          assert (release / "index.html").stat().st_size > 100
+          PY
       - name: Upload Pages build
         uses: actions/upload-pages-artifact@v3
         with:
