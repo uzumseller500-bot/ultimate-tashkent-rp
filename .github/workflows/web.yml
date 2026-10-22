@@ -1,0 +1,45 @@
+name: Build and deploy Tashkent RP Web
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout game
+        uses: actions/checkout@v4
+      - name: Install Godot and Web export templates
+        uses: solarlabyrinth/action-setup-godot@v3
+        with:
+          version: 4.7-stable
+          export-templates: true
+      - name: Import project
+        run: godot --headless --path . --editor --import --quit
+      - name: Export browser game
+        run: |
+          mkdir -p build/web
+          godot --headless --path . --export-release "Web" build/web/index.html
+          test -s build/web/index.html
+          touch build/web/.nojekyll
+      - name: Upload Pages build
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: build/web
+      - name: Deploy GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
