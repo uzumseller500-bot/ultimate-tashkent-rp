@@ -143,26 +143,26 @@ func _make_world() -> void:
 	res.background_color = Color("8bbdd5")
 	res.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	res.ambient_light_color = Color("d5e3e9")
-	res.ambient_light_energy = 0.52
+	res.ambient_light_energy = 0.30
 	res.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	env.environment = res
 	add_child(env)
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-52, -34, 0)
-	sun.light_energy = 1.05
+	sun.light_energy = 0.68
 	sun.shadow_enabled = false # Web performance: dynamic shadows off in Lite mode.
 	add_child(sun)
 	var ground := _mat(Color("65866a"))
 	var asphalt := _mat(Color("303840"))
-	var side := _mat(Color("b2b5ac"))
+	var side := _mat(Color("838e8a"))
 	var stripe := _mat(Color("f1da95"))
 	var trunk := _mat(Color("684a36"))
 	var leaf := _mat(Color("317e59"))
 	var glass := _mat(Color("60a6b6"), 0.26)
-	var concrete := _mat(Color("d9cfba"))
+	var concrete := _mat(Color("a9a698"))
 	var red := _mat(Color("ba6c5c"))
-	var blue := _mat(Color("83a7b8"))
-	var white := _mat(Color("cbd2d0"))
+	var blue := _mat(Color("658595"))
+	var white := _mat(Color("9ca9ad"))
 	var gold := _mat(Color("c5a45b"))
 	_box(self, "Land", Vector3(0, -0.25, 0), Vector3(360,0.5,360), ground, true)
 	# Broad north-south and east-west arterial roads, walkable pavements and lane marks.
@@ -293,7 +293,7 @@ func _make_ui() -> void:
 	ui.add_child(root)
 	var top := PanelContainer.new()
 	top.position = Vector2(18,16)
-	top.custom_minimum_size = Vector2(390,0)
+	top.custom_minimum_size = Vector2(415,0)
 	var panel_style := StyleBoxFlat.new()
 	panel_style.bg_color = Color(0.045,0.09,0.13,0.86)
 	panel_style.corner_radius_top_left = 12
@@ -319,19 +319,16 @@ func _make_ui() -> void:
 	fps_label = Label.new()
 	labels.add_child(fps_label)
 	save_label = Label.new()
-	save_label.text = "● Progress avtomatik saqlanadi"
+	save_label.text = "Progress avtomatik saqlanadi"
 	labels.add_child(save_label)
 	mission_label = Label.new()
 	mission_label.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	mission_label.custom_minimum_size = Vector2(365, 0)
 	labels.add_child(mission_label)
 	information = Label.new()
-	information.text = "WASD — yurish/haydash • E — mashina • SHIFT — yugurish\nSichqoncha o‘ng tugmasi + surish — kamerani burish"
+	information.text = "WASD - harakat  |  E - mashina  |  SHIFT - yugurish"
 	information.add_theme_font_size_override("font_size",14)
 	labels.add_child(information)
-	var instructions := Label.new()
-	instructions.text = "● Baland yashil belgi tomon boring: birinchi topshiriq"
-	instructions.position = Vector2(20,189)
-	root.add_child(instructions)
 	# Right-side Android camera touch zone intentionally does not cover HUD buttons.
 	touch_pad = Control.new()
 	touch_pad.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -341,10 +338,10 @@ func _make_ui() -> void:
 	left_base.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	left_base.position = Vector2(18,-210)
 	root.add_child(left_base)
-	_touch_button(left_base,"▲",Vector2(68,0),"forward")
-	_touch_button(left_base,"◀",Vector2(0,68),"left")
-	_touch_button(left_base,"▼",Vector2(68,68),"back")
-	_touch_button(left_base,"▶",Vector2(136,68),"right")
+	_touch_button(left_base,"W",Vector2(68,0),"forward")
+	_touch_button(left_base,"A",Vector2(0,68),"left")
+	_touch_button(left_base,"S",Vector2(68,68),"back")
+	_touch_button(left_base,"D",Vector2(136,68),"right")
 	var right_base := Control.new()
 	right_base.set_anchors_preset(Control.PRESET_BOTTOM_RIGHT)
 	right_base.position = Vector2(-220,-200)
@@ -357,7 +354,7 @@ func _make_ui() -> void:
 	right_base.add_child(action_button)
 	action_button.pressed.connect(_toggle_car)
 	var note := Label.new()
-	note.text = "Android: chap tugmalar — yurish, o‘ng ekran — kamerani burish"
+	note.text = "Android: chap tugmalar - harakat, ong ekran - kamera"
 	note.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
 	note.position = Vector2(20,-24)
 	root.add_child(note)
@@ -487,7 +484,7 @@ func _load_game() -> void:
 
 func _update_status() -> void:
 	if coins_label:
-		coins_label.text = "💰 Balans: %s so‘m   |   %s" % [str(cash), "🚘 MASHINADA" if car_mode else "🚶 PIYODA"]
+		coins_label.text = "Balans: %s som  |  %s" % [str(cash), "MASHINADA" if car_mode else "PIYODA"]
 	if mission_label:
 		mission_label.text = "Topshiriq #%d: yashil belgilangan manzilga boring — mukofot 250 so‘m" % (mission_stage+1)
 	if action_button:
