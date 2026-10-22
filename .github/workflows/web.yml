@@ -64,6 +64,19 @@ jobs:
               f'<script>location.replace({url!r})</script></body></html>'
           )
           (root / "index.html").write_text(page, encoding="utf-8")
+          # GitHub Pages serves 404.html for obsolete versioned links.
+          # Send users back to the stable URL, which selects the newest build.
+          fallback = (
+              '<!doctype html><html lang="uz"><head><meta charset="utf-8">'
+              '<meta name="viewport" content="width=device-width, initial-scale=1">'
+              '<title>ULTIMATE TASHKENT RP - yangilangan manzil</title>'
+              '<meta http-equiv="refresh" content="0;url=/ultimate-tashkent-rp/">'
+              '</head><body style="background:#142032;color:white;font:18px sans-serif;padding:2rem">'
+              '<p>O\u2018yin yangi versiyaga yangilandi. Yo\u2018naltirilmoqda...</p>'
+              '<p><a style="color:#8ce0ff" href="/ultimate-tashkent-rp/">O\u2018yinni ochish</a></p>'
+              '<script>location.replace("/ultimate-tashkent-rp/")</script></body></html>'
+          )
+          (root / "404.html").write_text(fallback, encoding="utf-8")
           assert (release / "index.html").stat().st_size > 100
           PY
       - name: Upload Pages build
