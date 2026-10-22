@@ -41,6 +41,7 @@ var material_cache: Dictionary = {}
 var batching_world := false
 var hud_update_timer := 0.0
 var fps_label: Label
+var navigation_label: Label
 
 func _ready() -> void:
 	_load_game()
@@ -214,6 +215,30 @@ func _make_world() -> void:
 		for sign_i in [-1,1]:
 			_cylinder(self,"Street light pole",Vector3(i*48,3.7,sign_i*16),0.14,7.4,side)
 			_box(self,"Lamp head",Vector3(i*48,7.35,sign_i*16),Vector3(1.5,.4,.8),white)
+	# V0.3: recognizable urban details with batched, low-cost geometry.
+	var signal_dark := _mat(Color("26333a"))
+	var signal_red := _mat(Color("c84842"))
+	var signal_yellow := _mat(Color("c9a440"))
+	var signal_green := _mat(Color("36986d"))
+	var bus_blue := _mat(Color("326b96"))
+	for junction in [-90.0, 0.0, 90.0]:
+		for lane in [-90.0, 0.0, 90.0]:
+			for corner in [-1.0, 1.0]:
+				var sx := junction + corner*17.5
+				var sz := lane + 17.5
+				_cylinder(self, "Traffic light pole", Vector3(sx,2.3,sz),0.12,4.6,signal_dark)
+				_box(self,"Traffic signal case",Vector3(sx,4.75,sz),Vector3(.65,1.65,.42),signal_dark)
+				_box(self,"Red signal",Vector3(sx,5.24,sz-.23),Vector3(.36,.31,.04),signal_red)
+				_box(self,"Amber signal",Vector3(sx,4.76,sz-.23),Vector3(.36,.31,.04),signal_yellow)
+				_box(self,"Green signal",Vector3(sx,4.28,sz-.23),Vector3(.36,.31,.04),signal_green)
+	# Three bus stops with roof, seat and distinctive blue signs.
+	for stop_x in [-65.0, 30.0, 115.0]:
+		var stop_z := 17.5
+		_box(self,"Bus shelter roof",Vector3(stop_x,3.15,stop_z),Vector3(5.5,.24,2.4),bus_blue)
+		for dx in [-2.3,2.3]:
+			_cylinder(self,"Bus shelter post",Vector3(stop_x+dx,1.6,stop_z),.11,3.1,signal_dark)
+		_box(self,"Bus stop bench",Vector3(stop_x,0.8,stop_z+.4),Vector3(3.4,.22,.65),concrete)
+		_box(self,"Bus stop sign",Vector3(stop_x+3.1,2.6,stop_z),Vector3(.9,.9,.12),bus_blue)
 	# Crosswalks and roadside green strips.
 	for junction in [-90.0,0.0,90.0]:
 		for lane in [-90.0,0.0,90.0]:
@@ -309,7 +334,7 @@ func _make_ui() -> void:
 	var labels := VBoxContainer.new()
 	top.add_child(labels)
 	var title := Label.new()
-	title.text = "ULTIMATE TASHKENT RP  |  V0.2 LITE"
+	title.text = "ULTIMATE TASHKENT RP  |  V0.3 CITY"
 	title.add_theme_font_size_override("font_size",20)
 	labels.add_child(title)
 	coins_label = Label.new()
@@ -318,6 +343,8 @@ func _make_ui() -> void:
 	labels.add_child(speed_label)
 	fps_label = Label.new()
 	labels.add_child(fps_label)
+	navigation_label = Label.new()
+	labels.add_child(navigation_label)
 	save_label = Label.new()
 	save_label.text = "Progress avtomatik saqlanadi"
 	labels.add_child(save_label)
@@ -408,7 +435,11 @@ func _process(delta: float) -> void:
 		if speed_label:
 			speed_label.text = "TEZLIK  %03d km/soat" % int(absf(car_velocity)*5.0) if car_mode else "PIYODA  •  WASD"
 		if fps_label:
-			fps_label.text = "FPS: %d | Tezkor rejim" % Engine.get_frames_per_second()
+			fps_label.text = "FPS: %d | City rejim" % Engine.get_frames_per_second()
+		if navigation_label:
+			var focus_position: Vector3 = car.global_position if car_mode else player.global_position
+			var meters := int(focus_position.distance_to(mission_target))
+			navigation_label.text = "MANZIL: %d m  |  X:%d  Z:%d" % [meters, int(focus_position.x), int(focus_position.z)]
 
 func _physics_process(delta: float) -> void:
 	var forward := float(Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP) or controls["forward"])
