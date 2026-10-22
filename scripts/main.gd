@@ -34,6 +34,13 @@ var last_look := Vector2.ZERO
 var mouse_look := false
 var mission_marker: MeshInstance3D
 var city_materials: Array[Material] = []
+# Static road markings, windows and vegetation use instanced meshes.
+# This avoids hundreds of browser draw calls.
+var static_batches: Dictionary = {}
+var material_cache: Dictionary = {}
+var batching_world := false
+var hud_update_timer := 0.0
+var fps_label: Label
 
 func _ready() -> void:
 	_load_game()
@@ -46,12 +53,54 @@ func _ready() -> void:
 	# Do not capture the mouse: it should be playable using a normal mouse and touchscreen.
 
 func _mat(color: Color, rough: float = 0.82) -> StandardMaterial3D:
+	var cache_key := color.to_html(true) + "_" + str(snappedf(rough, 0.01))
+	if material_cache.has(cache_key):
+		return material_cache[cache_key] as StandardMaterial3D
 	var m := StandardMaterial3D.new()
 	m.albedo_color = color
 	m.roughness = rough
+	material_cache[cache_key] = m
 	return m
 
+func _add_static_instance(kind: String, material: Material, transform: Transform3D) -> void:
+	var batch_id := kind + "_" + str(material.get_instance_id())
+	if not static_batches.has(batch_id):
+		static_batches[batch_id] = {"kind": kind, "material": material, "transforms": []}
+	static_batches[batch_id]["transforms"].append(transform)
+
+func _flush_static_batches() -> void:
+	for batch_id in static_batches:
+		var data: Dictionary = static_batches[batch_id]
+		var transforms: Array = data["transforms"]
+		if transforms.is_empty():
+			continue
+		var mesh: PrimitiveMesh
+		if data["kind"] == "cylinder":
+			var cylinder := CylinderMesh.new()
+			cylinder.top_radius = 1.0
+			cylinder.bottom_radius = 1.0
+			cylinder.height = 1.0
+			cylinder.radial_segments = 8
+			mesh = cylinder
+		else:
+			mesh = BoxMesh.new()
+		var multi := MultiMesh.new()
+		multi.transform_format = MultiMesh.TRANSFORM_3D
+		multi.mesh = mesh
+		multi.instance_count = transforms.size()
+		for i in range(transforms.size()):
+			multi.set_instance_transform(i, transforms[i])
+		var node := MultiMeshInstance3D.new()
+		node.name = "Batched_" + str(batch_id)
+		node.multimesh = multi
+		node.material_override = data["material"]
+		add_child(node)
+	static_batches.clear()
+
 func _box(parent: Node3D, name: String, pos: Vector3, size: Vector3, material: Material, solid: bool = false) -> MeshInstance3D:
+	if batching_world and parent == self and not solid:
+		_add_static_instance("box", material, Transform3D(Basis.IDENTITY.scaled(size), pos))
+		return null
 	var mesh_node := MeshInstance3D.new()
 	mesh_node.name = name
 	var mesh := BoxMesh.new()
@@ -71,6 +120,9 @@ func _box(parent: Node3D, name: String, pos: Vector3, size: Vector3, material: M
 	return mesh_node
 
 func _cylinder(parent: Node3D, name: String, pos: Vector3, radius: float, height: float, material: Material) -> MeshInstance3D:
+	if batching_world and parent == self:
+		_add_static_instance("cylinder", material, Transform3D(Basis.IDENTITY.scaled(Vector3(radius,height,radius)), pos))
+		return null
 	var node := MeshInstance3D.new()
 	node.name = name
 	var mesh := CylinderMesh.new()
@@ -84,6 +136,7 @@ func _cylinder(parent: Node3D, name: String, pos: Vector3, radius: float, height
 	return node
 
 func _make_world() -> void:
+	batching_world = true
 	var env := WorldEnvironment.new()
 	var res := Environment.new()
 	res.background_mode = Environment.BG_COLOR
@@ -97,7 +150,7 @@ func _make_world() -> void:
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-52, -34, 0)
 	sun.light_energy = 1.05
-	sun.shadow_enabled = true
+	sun.shadow_enabled = false # Web performance: dynamic shadows off in Lite mode.
 	add_child(sun)
 	var ground := _mat(Color("65866a"))
 	var asphalt := _mat(Color("303840"))
@@ -171,6 +224,8 @@ func _make_world() -> void:
 		var ax := 45.0 + cos(float(t)*TAU/14.0)*24.0
 		var az := -45.0 + sin(float(t)*TAU/14.0)*24.0
 		_cylinder(self,"Shrub",Vector3(ax,0.75,az),0.95,1.5,leaf)
+	_flush_static_batches()
+	batching_world = false
 
 func _make_player() -> void:
 	player = CharacterBody3D.new()
@@ -189,6 +244,7 @@ func _make_player() -> void:
 	camera = Camera3D.new()
 	camera.name = "FollowCamera"
 	camera.current = true
+	camera.far = 190.0
 	add_child(camera)
 
 func _make_car() -> void:
@@ -253,13 +309,15 @@ func _make_ui() -> void:
 	var labels := VBoxContainer.new()
 	top.add_child(labels)
 	var title := Label.new()
-	title.text = "ULTIMATE TASHKENT RP  |  V0.2"
+	title.text = "ULTIMATE TASHKENT RP  |  V0.2 LITE"
 	title.add_theme_font_size_override("font_size",20)
 	labels.add_child(title)
 	coins_label = Label.new()
 	labels.add_child(coins_label)
 	speed_label = Label.new()
 	labels.add_child(speed_label)
+	fps_label = Label.new()
+	labels.add_child(fps_label)
 	save_label = Label.new()
 	save_label.text = "● Progress avtomatik saqlanadi"
 	labels.add_child(save_label)
@@ -346,6 +404,15 @@ func _input(event: InputEvent) -> void:
 		view_pitch = clampf(view_pitch-(event.position.y-last_look.y)*0.004,-0.75,0.12)
 		last_look = event.position
 
+func _process(delta: float) -> void:
+	hud_update_timer += delta
+	if hud_update_timer >= 0.3:
+		hud_update_timer = 0.0
+		if speed_label:
+			speed_label.text = "TEZLIK  %03d km/soat" % int(absf(car_velocity)*5.0) if car_mode else "PIYODA  •  WASD"
+		if fps_label:
+			fps_label.text = "FPS: %d | Tezkor rejim" % Engine.get_frames_per_second()
+
 func _physics_process(delta: float) -> void:
 	var forward := float(Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP) or controls["forward"])
 	forward -= float(Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN) or controls["back"])
@@ -395,8 +462,6 @@ func _physics_process(delta: float) -> void:
 		mission_marker.position = mission_target + Vector3(0,4,0)
 		_save_game()
 		_update_status()
-	if speed_label:
-		speed_label.text = "TEZLIK  %03d km/soat" % int(absf(car_velocity)*5.0) if car_mode else "PIYODA  •  WASD"
 
 func _save_game() -> void:
 	var data := {"cash":cash,"mission_stage":mission_stage,"mission_target":[mission_target.x,mission_target.y,mission_target.z]}
