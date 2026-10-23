@@ -175,17 +175,18 @@ func _make_world() -> void:
 	res.background_color = Color("a4cee3")
 	res.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	res.ambient_light_color = Color("d5e3e9")
-	res.ambient_light_energy = 0.48
+	res.ambient_light_energy = 0.24
 	res.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	res.tonemap_exposure = 0.75
 	res.fog_enabled = true
 	res.fog_light_color = Color("b9d4dd")
-	res.fog_density = 0.0018
+	res.fog_density = 0.0008
 	env.environment = res
 	add_child(env)
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-52, -34, 0)
-	sun.light_energy = 1.05
-	sun.shadow_enabled = true
+	sun.light_energy = 0.62
+	sun.shadow_enabled = false # Web: avoid heavy cascaded shadows and blown highlights
 	sun.directional_shadow_max_distance = 90.0
 	sun.shadow_blur = 1.4
 	add_child(sun)
@@ -531,7 +532,7 @@ func _make_ui() -> void:
 	var labels := VBoxContainer.new()
 	top.add_child(labels)
 	var title := Label.new()
-	title.text = "ULTIMATE TASHKENT RP  |  V1.0 VISUAL CITY"
+	title.text = "ULTIMATE TASHKENT RP  |  V1.0.1 LIGHT FIX"
 	title.add_theme_font_size_override("font_size",20)
 	labels.add_child(title)
 	coins_label = Label.new()
@@ -691,7 +692,7 @@ func _process(delta: float) -> void:
 		if speed_label:
 			speed_label.text = "TEZLIK  %03d km/soat" % int(absf(car_velocity)*5.0) if car_mode else "PIYODA  •  WASD"
 		if fps_label:
-			fps_label.text = "FPS: %d | Visual City" % Engine.get_frames_per_second()
+			fps_label.text = "FPS: %d | Light Fix" % Engine.get_frames_per_second()
 		if navigation_label:
 			var focus_position: Vector3 = car.global_position if car_mode else player.global_position
 			var meters := int(focus_position.distance_to(mission_target))
