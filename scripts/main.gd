@@ -42,12 +42,14 @@ var batching_world := false
 var hud_update_timer := 0.0
 var fps_label: Label
 var navigation_label: Label
+var pedestrians: Array[Dictionary] = []
 
 func _ready() -> void:
 	_load_game()
 	_make_world()
 	_make_player()
 	_make_car()
+	_make_pedestrians()
 	_make_marker()
 	_make_ui()
 	_update_status()
@@ -296,6 +298,39 @@ func _make_player() -> void:
 	camera.far = 190.0
 	add_child(camera)
 
+# V0.5: animated citizens using light-weight procedural geometry.
+func _make_pedestrians() -> void:
+	var coats: Array[Color] = [Color("385b8b"),Color("8b493b"),Color("467c61"),Color("a78949"),Color("604b7f")]
+	var skin := _mat(Color("c99570"))
+	var dark := _mat(Color("28313c"))
+	for i in range(12):
+		var citizen := Node3D.new()
+		citizen.name = "Citizen_%02d" % i
+		add_child(citizen)
+		var lane_x: float = -14.5 if i % 2 == 0 else 14.5
+		var start_z: float = -125.0 + float(i / 2) * 45.0
+		citizen.position = Vector3(lane_x,0.0,start_z)
+		var coat := _mat(coats[i % coats.size()])
+		_box(citizen,"Torso",Vector3(0,1.32,0),Vector3(.62,.92,.36),coat)
+		_cylinder(citizen,"Head",Vector3(0,2.02,0),.23,.40,skin)
+		var left_arm := Node3D.new()
+		left_arm.position = Vector3(-.41,1.64,0)
+		citizen.add_child(left_arm)
+		_box(left_arm,"Left arm",Vector3(0,-.38,0),Vector3(.20,.78,.24),coat)
+		var right_arm := Node3D.new()
+		right_arm.position = Vector3(.41,1.64,0)
+		citizen.add_child(right_arm)
+		_box(right_arm,"Right arm",Vector3(0,-.38,0),Vector3(.20,.78,.24),coat)
+		var left_leg := Node3D.new()
+		left_leg.position = Vector3(-.17,.91,0)
+		citizen.add_child(left_leg)
+		_box(left_leg,"Left leg",Vector3(0,-.42,0),Vector3(.24,.82,.26),dark)
+		var right_leg := Node3D.new()
+		right_leg.position = Vector3(.17,.91,0)
+		citizen.add_child(right_leg)
+		_box(right_leg,"Right leg",Vector3(0,-.42,0),Vector3(.24,.82,.26),dark)
+		pedestrians.append({"node":citizen,"left_arm":left_arm,"right_arm":right_arm,"left_leg":left_leg,"right_leg":right_leg,"direction":1.0 if i % 3 != 0 else -1.0,"phase":float(i)*1.5,"speed":1.1+float(i%4)*.18})
+
 func _make_car() -> void:
 	car = Node3D.new()
 	car.name = "DriveableCar"
@@ -358,7 +393,7 @@ func _make_ui() -> void:
 	var labels := VBoxContainer.new()
 	top.add_child(labels)
 	var title := Label.new()
-	title.text = "ULTIMATE TASHKENT RP  |  V0.4 CITY LIFE"
+	title.text = "ULTIMATE TASHKENT RP  |  V0.5 LIVING CITY"
 	title.add_theme_font_size_override("font_size",20)
 	labels.add_child(title)
 	coins_label = Label.new()
@@ -453,13 +488,28 @@ func _input(event: InputEvent) -> void:
 		last_look = event.position
 
 func _process(delta: float) -> void:
+	# NPCs walk along sidewalks, reverse at district boundaries.
+	for npc in pedestrians:
+		var citizen: Node3D = npc["node"]
+		var heading: float = npc["direction"]
+		citizen.position.z += heading * float(npc["speed"]) * delta
+		if citizen.position.z > 137.0 or citizen.position.z < -137.0:
+			npc["direction"] = -heading
+			citizen.position.z = clampf(citizen.position.z,-137.0,137.0)
+		citizen.rotation.y = 0.0 if float(npc["direction"]) < 0.0 else PI
+		npc["phase"] = float(npc["phase"]) + delta*7.0
+		var swing: float = sin(float(npc["phase"]))*0.42
+		(npc["left_leg"] as Node3D).rotation.x = swing
+		(npc["right_leg"] as Node3D).rotation.x = -swing
+		(npc["left_arm"] as Node3D).rotation.x = -swing*.75
+		(npc["right_arm"] as Node3D).rotation.x = swing*.75
 	hud_update_timer += delta
 	if hud_update_timer >= 0.3:
 		hud_update_timer = 0.0
 		if speed_label:
 			speed_label.text = "TEZLIK  %03d km/soat" % int(absf(car_velocity)*5.0) if car_mode else "PIYODA  •  WASD"
 		if fps_label:
-			fps_label.text = "FPS: %d | City Life" % Engine.get_frames_per_second()
+			fps_label.text = "FPS: %d | Living City" % Engine.get_frames_per_second()
 		if navigation_label:
 			var focus_position: Vector3 = car.global_position if car_mode else player.global_position
 			var meters := int(focus_position.distance_to(mission_target))
