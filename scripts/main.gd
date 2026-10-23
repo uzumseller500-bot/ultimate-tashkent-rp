@@ -488,7 +488,7 @@ func _make_ui() -> void:
 	var labels := VBoxContainer.new()
 	top.add_child(labels)
 	var title := Label.new()
-	title.text = "ULTIMATE TASHKENT RP  |  V0.7.1 CITY PATROL"
+	title.text = "ULTIMATE TASHKENT RP  |  V0.7.2 TRAFFIC FIX"
 	title.add_theme_font_size_override("font_size",20)
 	labels.add_child(title)
 	coins_label = Label.new()
@@ -648,18 +648,21 @@ func _process(delta: float) -> void:
 		if speed_label:
 			speed_label.text = "TEZLIK  %03d km/soat" % int(absf(car_velocity)*5.0) if car_mode else "PIYODA  •  WASD"
 		if fps_label:
-			fps_label.text = "FPS: %d | City Patrol" % Engine.get_frames_per_second()
+			fps_label.text = "FPS: %d | Traffic Fix" % Engine.get_frames_per_second()
 		if navigation_label:
 			var focus_position: Vector3 = car.global_position if car_mode else player.global_position
 			var meters := int(focus_position.distance_to(mission_target))
 			navigation_label.text = "MANZIL: %d m  |  X:%d  Z:%d" % [meters, int(focus_position.x), int(focus_position.z)]
 
-func _blocked_by_patrol(candidate: Vector3) -> bool:
+func _blocked_by_patrol(candidate: Vector3, current: Vector3) -> bool:
+	# Allow a player to drive OUT of an existing overlap, but not deeper into one.
 	for patrol in police_cars:
 		var unit: Node3D = patrol["node"]
-		var diff := candidate - unit.position
-		diff.y = 0.0
-		if diff.length() < 5.0:
+		var future_diff: Vector3 = candidate - unit.position
+		var current_diff: Vector3 = current - unit.position
+		future_diff.y = 0.0
+		current_diff.y = 0.0
+		if future_diff.length() < 5.6 and future_diff.length() < current_diff.length():
 			return true
 	return false
 
@@ -669,21 +672,37 @@ func _blocked_for_vehicle(candidate: Vector3) -> bool:
 			return true
 	return false
 
+func _clear_patrol_destination(candidate: Vector3, own_car: Node3D) -> bool:
+	# Do not place patrols inside the player car or other police vehicles.
+	var player_delta: Vector3 = candidate - car.position
+	player_delta.y = 0.0
+	if player_delta.length() < 6.8:
+		return false
+	for patrol in police_cars:
+		var other: Node3D = patrol["node"]
+		if other == own_car:
+			continue
+		var diff: Vector3 = candidate - other.position
+		diff.y = 0.0
+		if diff.length() < 6.2:
+			return false
+	return not _blocked_for_vehicle(candidate)
+
 func _update_patrols(delta: float) -> void:
-	# Patrol cars move slowly along their assigned road even when there is no alert.
 	if wanted_level == 0:
+		# Calm patrols drive short routes without pushing through parked vehicles.
 		for patrol in police_cars:
 			var unit: Node3D = patrol["node"]
 			var direction_z: float = float(patrol["idle_dir"])
-			var next_z: float = unit.position.z + direction_z * 3.5 * delta
 			var base_z: float = float(patrol["base_z"])
+			var next_z: float = unit.position.z + direction_z * 3.5 * delta
 			if absf(next_z - base_z) > 26.0:
 				direction_z = -direction_z
 				patrol["idle_dir"] = direction_z
 				next_z = unit.position.z + direction_z * 3.5 * delta
-			var desired: Vector3 = Vector3(unit.position.x,unit.position.y,next_z)
-			if not _blocked_for_vehicle(desired) and desired.distance_to(car.position) > 8.0:
-				unit.position.z = next_z
+			var desired := Vector3(unit.position.x,unit.position.y,next_z)
+			if _clear_patrol_destination(desired,unit):
+				unit.position = desired
 			unit.rotation.y = 0.0 if direction_z < 0.0 else PI
 		pursuit_time = 0.0
 		return
@@ -691,20 +710,20 @@ func _update_patrols(delta: float) -> void:
 	var target: Vector3 = car.global_position if car_mode else player.global_position
 	var nearest: float = 10000.0
 	for patrol in police_cars:
-		var police_vehicle: Node3D = patrol["node"]
-		var direction: Vector3 = target - police_vehicle.global_position
-		direction.y = 0.0
-		var distance: float = direction.length()
+		var unit: Node3D = patrol["node"]
+		var to_target: Vector3 = target - unit.global_position
+		to_target.y = 0.0
+		var distance: float = to_target.length()
 		nearest = minf(nearest,distance)
-		# Keep vehicle body clear of the player car rather than driving inside it.
-		var stop_distance: float = 6.7 if car_mode else 3.1
+		var stop_distance: float = 7.2 if car_mode else 4.2
 		if distance > stop_distance:
-			var step_length: float = minf(delta * (10.0+float(wanted_level)*2.5),distance-stop_distance)
-			var destination: Vector3 = police_vehicle.position + direction.normalized()*step_length
-			if not _blocked_for_vehicle(destination):
-				police_vehicle.position = destination
-			police_vehicle.rotation.y = atan2(-direction.x,-direction.z)
-	if nearest < (7.3 if car_mode else 3.7):
+			var speed: float = 10.0 + float(wanted_level)*2.5
+			var step: float = minf(delta*speed,distance-stop_distance)
+			var destination: Vector3 = unit.position + to_target.normalized()*step
+			if _clear_patrol_destination(destination,unit):
+				unit.position = destination
+			unit.rotation.y = atan2(-to_target.x,-to_target.z)
+	if nearest < (8.5 if car_mode else 4.9):
 		pursuit_time += delta
 		if pursuit_time > 2.5:
 			wanted_level = 0
@@ -732,11 +751,19 @@ func _physics_process(delta: float) -> void:
 		car_angle += side*delta*1.15*clampf(absf(car_velocity)/DRIVE_SPEED,0.15,1.0)*(1.0 if car_velocity>=0 else -1.0)
 		car.rotation.y = car_angle
 		var travel := Vector3(-sin(car_angle),0,-cos(car_angle))*car_velocity*delta
-		var candidate := car.position + travel
-		if _blocked_for_vehicle(candidate) or _blocked_by_patrol(candidate):
+		# Sweep the travelled distance to avoid jumping through thin obstacles on slow frames.
+		var from_position: Vector3 = car.position
+		var blocked := false
+		var segment_count: int = maxi(1,ceili(travel.length() / 0.8))
+		for segment_i in range(1,segment_count+1):
+			var candidate: Vector3 = from_position + travel * (float(segment_i)/float(segment_count))
+			if _blocked_for_vehicle(candidate) or _blocked_by_patrol(candidate,from_position):
+				blocked = true
+				break
+		if blocked:
 			car_velocity = 0.0
 		else:
-			car.position = candidate
+			car.position = from_position + travel
 		car.position.x = clampf(car.position.x,-CITY_EXTENT,CITY_EXTENT)
 		car.position.z = clampf(car.position.z,-CITY_EXTENT,CITY_EXTENT)
 		if absf(car_velocity) > 4.0:
