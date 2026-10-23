@@ -667,6 +667,14 @@ func _physics_process(delta: float) -> void:
 			car.position = candidate
 		car.position.x = clampf(car.position.x,-CITY_EXTENT,CITY_EXTENT)
 		car.position.z = clampf(car.position.z,-CITY_EXTENT,CITY_EXTENT)
+		if absf(car_velocity) > 4.0:
+			for npc in pedestrians:
+				var citizen: Node3D = npc["node"]
+				if float(npc["knocked"]) <= 0.0 and citizen.global_position.distance_to(car.global_position) < 2.3:
+					npc["knocked"] = 7.0
+					wanted_level = mini(3,wanted_level+1)
+					wanted_timer = 35.0
+					break
 		player.position = car.position + Vector3(0,0.4,0)
 		view_yaw = lerp_angle(view_yaw,car_angle, minf(delta*3.0,1.0))
 	else:
