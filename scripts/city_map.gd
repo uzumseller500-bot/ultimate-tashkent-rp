@@ -37,14 +37,14 @@ func _draw() -> void:
 	var dimensions := area.size
 	# Stylized district sectors; geographic accuracy is not claimed.
 	for i in range(1,4):
-		var x := origin.x+dimensions.x*float(i)/4.0
-		var y := origin.y+dimensions.y*float(i)/3.0
+		var x: float = origin.x+dimensions.x*float(i)/4.0
+		var y: float = origin.y+dimensions.y*float(i)/3.0
 		draw_line(Vector2(x,origin.y),Vector2(x,origin.y+dimensions.y),Color("52676c"),1.0)
 		if i < 3:
 			draw_line(Vector2(origin.x,y),Vector2(origin.x+dimensions.x,y),Color("52676c"),1.0)
 	for road in [-90.0,0.0,90.0]:
-		var x := origin.x+(road+MAP_EXTENT)/(MAP_EXTENT*2.0)*dimensions.x
-		var y := origin.y+(road+MAP_EXTENT)/(MAP_EXTENT*2.0)*dimensions.y
+		var x: float = origin.x+(road+MAP_EXTENT)/(MAP_EXTENT*2.0)*dimensions.x
+		var y: float = origin.y+(road+MAP_EXTENT)/(MAP_EXTENT*2.0)*dimensions.y
 		draw_line(Vector2(x,origin.y),Vector2(x,origin.y+dimensions.y),Color("87999d"),3.0)
 		draw_line(Vector2(origin.x,y),Vector2(origin.x+dimensions.x,y),Color("87999d"),3.0)
 	if expanded:
