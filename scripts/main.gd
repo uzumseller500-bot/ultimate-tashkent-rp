@@ -641,6 +641,12 @@ func _process(delta: float) -> void:
 			var meters := int(focus_position.distance_to(mission_target))
 			navigation_label.text = "MANZIL: %d m  |  X:%d  Z:%d" % [meters, int(focus_position.x), int(focus_position.z)]
 
+func _blocked_for_vehicle(candidate: Vector3) -> bool:
+	for obstacle in car_obstacles:
+		if absf(candidate.x - float(obstacle["x"])) < float(obstacle["hx"]) + 1.4 and absf(candidate.z - float(obstacle["z"])) < float(obstacle["hz"]) + 2.2:
+			return true
+	return false
+
 func _physics_process(delta: float) -> void:
 	var forward := float(Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP) or controls["forward"])
 	forward -= float(Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN) or controls["back"])
@@ -654,7 +660,11 @@ func _physics_process(delta: float) -> void:
 		car_angle += side*delta*1.15*clampf(absf(car_velocity)/DRIVE_SPEED,0.15,1.0)*(1.0 if car_velocity>=0 else -1.0)
 		car.rotation.y = car_angle
 		var travel := Vector3(-sin(car_angle),0,-cos(car_angle))*car_velocity*delta
-		car.position += travel
+		var candidate := car.position + travel
+		if _blocked_for_vehicle(candidate):
+			car_velocity = 0.0
+		else:
+			car.position = candidate
 		car.position.x = clampf(car.position.x,-CITY_EXTENT,CITY_EXTENT)
 		car.position.z = clampf(car.position.z,-CITY_EXTENT,CITY_EXTENT)
 		player.position = car.position + Vector3(0,0.4,0)
