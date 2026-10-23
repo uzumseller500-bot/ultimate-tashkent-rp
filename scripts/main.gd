@@ -224,8 +224,8 @@ func _make_world() -> void:
 	for junction in [-90.0, 0.0, 90.0]:
 		for lane in [-90.0, 0.0, 90.0]:
 			for corner in [-1.0, 1.0]:
-				var sx := junction + corner*17.5
-				var sz := lane + 17.5
+				var sx: float = float(junction) + float(corner)*17.5
+				var sz: float = float(lane) + 17.5
 				_cylinder(self, "Traffic light pole", Vector3(sx,2.3,sz),0.12,4.6,signal_dark)
 				_box(self,"Traffic signal case",Vector3(sx,4.75,sz),Vector3(.65,1.65,.42),signal_dark)
 				_box(self,"Red signal",Vector3(sx,5.24,sz-.23),Vector3(.36,.31,.04),signal_red)
