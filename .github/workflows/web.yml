@@ -30,6 +30,14 @@ jobs:
           export-templates: true
       - name: Import project
         run: godot --headless --path . --editor --import --quit
+      - name: Smoke-test live Godot scene
+        run: |
+          set -o pipefail
+          godot --headless --path . --quit-after 12 2>&1 | tee /tmp/tashkent-smoke.log
+          if grep -E -i 'SCRIPT ERROR|Parse Error|Invalid call|ERROR:' /tmp/tashkent-smoke.log; then
+            echo "::error::Game runtime emitted an error during startup"
+            exit 1
+          fi
       - name: Export browser game
         run: |
           mkdir -p build/web
