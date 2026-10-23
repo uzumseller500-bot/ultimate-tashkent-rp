@@ -615,6 +615,11 @@ func _process(delta: float) -> void:
 	for npc in pedestrians:
 		var citizen: Node3D = npc["node"]
 		var heading: float = npc["direction"]
+		if float(npc["knocked"]) > 0.0:
+			npc["knocked"] = maxf(0.0,float(npc["knocked"])-delta)
+			citizen.rotation.z = lerpf(citizen.rotation.z,1.1,minf(delta*5.0,1.0))
+			continue
+		citizen.rotation.z = lerpf(citizen.rotation.z,0.0,minf(delta*5.0,1.0))
 		citizen.position.z += heading * float(npc["speed"]) * delta
 		if citizen.position.z > 137.0 or citizen.position.z < -137.0:
 			npc["direction"] = -heading
