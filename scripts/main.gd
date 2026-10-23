@@ -190,6 +190,9 @@ func _make_world() -> void:
 	var stripe := _mat(Color("f1da95"))
 	var trunk := _mat(Color("684a36"))
 	var leaf := _mat(Color("3c885d"))
+	var leaf_light := _mat(Color("63a36c"))
+	var leaf_dark := _mat(Color("286b4c"))
+	var curb := _mat(Color("d5d5cb"))
 	var glass := _mat(Color("397d9a"), 0.18)
 	var concrete := _mat(Color("c4c0b4"))
 	var red := _mat(Color("ba6c5c"))
@@ -207,6 +210,8 @@ func _make_world() -> void:
 		for margin in [-14.0,14.0]:
 			_box(self, "Sidewalk", Vector3(0,0.1,pos+margin), Vector3(490,0.2,4), side)
 			_box(self, "Sidewalk", Vector3(pos+margin,0.1,0), Vector3(4,0.2,490), side)
+			_box(self, "Pavement curb", Vector3(0,0.16,pos+margin-2.05), Vector3(490,.26,.24), curb)
+			_box(self, "Pavement curb", Vector3(pos+margin-2.05,0.16,0), Vector3(.24,.26,490), curb)
 	# Low-poly Tashkent-inspired blocks, apartment towers, office glass and park trees.
 	var facade := [concrete, red, blue, white, glass]
 	for ix in range(-5,6):
@@ -222,7 +227,9 @@ func _make_world() -> void:
 					var ax := x + (t%2)*12.0 - 5.0
 					var az := z + (t/2)*12.0 - 5.0
 					_cylinder(self, "Tree trunk", Vector3(ax,1.6,az), 0.35,3.2,trunk)
-					_cylinder(self, "Tree canopy", Vector3(ax,4.4,az), 2.4,3.4,leaf)
+					_cylinder(self, "Tree canopy", Vector3(ax,4.05,az), 2.5,2.1,leaf_dark)
+					_cylinder(self, "Tree middle leaves", Vector3(ax,5.55,az), 2.1,1.5,leaf)
+					_cylinder(self, "Tree crown", Vector3(ax,6.45,az), 1.55,1.1,leaf_light)
 			else:
 				var h := 11.0 + float(abs(ix*13+iz*7)%5)*6.0
 				var m: Material = facade[absi(ix*3+iz*5)%facade.size()]
@@ -238,10 +245,14 @@ func _make_world() -> void:
 						_box(self,"Window glass",Vector3(wx,floor_y,z-8.66),Vector3(2.75,2.06,.09),glass)
 						_box(self,"Window center bar",Vector3(wx,floor_y,z-8.74),Vector3(.08,2.13,.09),facade_trim)
 						_box(self,"Window sill",Vector3(wx,floor_y-1.17,z-8.74),Vector3(3.3,.15,.3),facade_trim)
+						_box(self,"Side window left",Vector3(x-8.08,floor_y,z-4.3),Vector3(.08,1.8,2.0),glass)
+						_box(self,"Side window right",Vector3(x+8.08,floor_y,z+4.3),Vector3(.08,1.8,2.0),glass)
 				_box(self,"Roof rim",Vector3(x,h+0.25,z),Vector3(16.6,0.5,17.6),concrete)
 				_box(self,"Entrance",Vector3(x,1.6,z-8.65),Vector3(2.5,3.1,0.12),_mat(Color("334b52")))
 				_box(self,"Entrance canopy",Vector3(x,3.45,z-9.45),Vector3(4.4,.26,1.9),facade_trim)
 				_box(self,"Entrance step",Vector3(x,.13,z-9.25),Vector3(3.4,.26,1.2),concrete)
+				_box(self,"Facade pillar L",Vector3(x-7.8,h*.5,z-8.64),Vector3(.26,h,.26),facade_trim)
+				_box(self,"Facade pillar R",Vector3(x+7.8,h*.5,z-8.64),Vector3(.26,h,.26),facade_trim)
 				_box(self,"Base trim",Vector3(x,0.45,z-8.7),Vector3(16.1,0.65,0.15),side)
 	# A monumental central plaza, fountain and bazaar-style landmark.
 	_box(self,"Central square",Vector3(45,0.08,-45),Vector3(40,0.15,40),concrete)
@@ -290,12 +301,16 @@ func _make_world() -> void:
 		var shop_z: float = -21.0
 		_box(self,"City shop",Vector3(shop_x,2.1,shop_z),Vector3(8.0,4.2,5.2),shop_wall,true)
 		_box(self,"Shop awning",Vector3(shop_x,4.45,shop_z+1.3),Vector3(9.0,.35,3.0),shop_roof)
+		_box(self,"Storefront signboard",Vector3(shop_x,3.78,shop_z+2.75),Vector3(6.6,.85,.16),_mat(Color("204c60")))
+		_box(self,"Storefront sign trim",Vector3(shop_x,3.3,shop_z+2.85),Vector3(6.8,.08,.17),gold)
+		_box(self,"Storefront step",Vector3(shop_x,.10,shop_z+3.1),Vector3(5.2,.2,1.15),concrete)
 		_box(self,"Shop door",Vector3(shop_x,1.25,shop_z+2.68),Vector3(1.6,2.5,.10),shop_door)
 		for pane in [-2.7,2.7]:
 			_box(self,"Shop window",Vector3(shop_x+pane,2.0,shop_z+2.7),Vector3(1.65,1.65,.08),glass)
 	for kiosk_x in [-115.0, -35.0, 115.0]:
 		_box(self,"Street kiosk",Vector3(kiosk_x,1.45,35.0),Vector3(4.2,2.9,3.5),kiosk_orange,true)
 		_box(self,"Kiosk canopy",Vector3(kiosk_x,3.05,35.0),Vector3(5.2,.3,4.1),shop_roof)
+		_box(self,"Kiosk sign",Vector3(kiosk_x,2.68,33.18),Vector3(3.7,.43,.11),_mat(Color("e8d3a0")))
 		_box(self,"Kiosk serving window",Vector3(kiosk_x,1.95,33.2),Vector3(2.8,1.25,.08),glass)
 	# Park benches and planter beds near the fountain plaza.
 	for bench_x in [26.0, 45.0, 64.0]:
@@ -509,7 +524,7 @@ func _make_ui() -> void:
 	var labels := VBoxContainer.new()
 	top.add_child(labels)
 	var title := Label.new()
-	title.text = "ULTIMATE TASHKENT RP  |  V0.8 VISUAL UPGRADE"
+	title.text = "ULTIMATE TASHKENT RP  |  V0.9 CITY DETAILS"
 	title.add_theme_font_size_override("font_size",20)
 	labels.add_child(title)
 	coins_label = Label.new()
@@ -669,7 +684,7 @@ func _process(delta: float) -> void:
 		if speed_label:
 			speed_label.text = "TEZLIK  %03d km/soat" % int(absf(car_velocity)*5.0) if car_mode else "PIYODA  •  WASD"
 		if fps_label:
-			fps_label.text = "FPS: %d | Visual Upgrade" % Engine.get_frames_per_second()
+			fps_label.text = "FPS: %d | City Details" % Engine.get_frames_per_second()
 		if navigation_label:
 			var focus_position: Vector3 = car.global_position if car_mode else player.global_position
 			var meters := int(focus_position.distance_to(mission_target))
