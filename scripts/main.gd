@@ -177,12 +177,17 @@ func _make_world() -> void:
 	res.ambient_light_color = Color("d5e3e9")
 	res.ambient_light_energy = 0.48
 	res.tonemap_mode = Environment.TONE_MAPPER_FILMIC
+	res.fog_enabled = true
+	res.fog_light_color = Color("b9d4dd")
+	res.fog_density = 0.0018
 	env.environment = res
 	add_child(env)
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-52, -34, 0)
 	sun.light_energy = 1.05
-	sun.shadow_enabled = false # Web performance: dynamic shadows off in Lite mode.
+	sun.shadow_enabled = true
+	sun.directional_shadow_max_distance = 90.0
+	sun.shadow_blur = 1.4
 	add_child(sun)
 	var ground := _mat(Color("65866a"))
 	var asphalt := _mat(Color("30373c"))
@@ -336,8 +341,10 @@ func _make_human(root: Node3D, shade: Color, officer: bool = false) -> Dictionar
 	var jacket := _mat(shade)
 	var skin := _mat(Color("c99470"))
 	var jeans := _mat(Color("273340"))
+	var sneaker := _mat(Color("e3e0d6"))
 	var hair := _mat(Color("272629"))
-	_box(root,"Chest",Vector3(0,-.08,0),Vector3(.70,.88,.39),jacket)
+	_sphere(root,"Shoulders",Vector3(0,.16,0),Vector3(.76,.47,.43),jacket)
+	_sphere(root,"Torso",Vector3(0,-.18,0),Vector3(.62,.78,.42),jacket)
 	_box(root,"Hips",Vector3(0,-.55,0),Vector3(.57,.19,.35),jeans)
 	_box(root,"Neck",Vector3(0,.39,0),Vector3(.18,.17,.18),skin)
 	_sphere(root,"Face",Vector3(0,.72,-.03),Vector3(.48,.55,.43),skin)
@@ -351,23 +358,23 @@ func _make_human(root: Node3D, shade: Color, officer: bool = false) -> Dictionar
 	var left_arm := Node3D.new()
 	left_arm.position = Vector3(-.43,.27,0)
 	root.add_child(left_arm)
-	_box(left_arm,"Sleeve",Vector3(0,-.31,0),Vector3(.23,.65,.26),jacket)
+	_sphere(left_arm,"Sleeve",Vector3(0,-.31,0),Vector3(.28,.72,.30),jacket)
 	_sphere(left_arm,"Hand",Vector3(0,-.69,0),Vector3(.19,.20,.19),skin)
 	var right_arm := Node3D.new()
 	right_arm.position = Vector3(.43,.27,0)
 	root.add_child(right_arm)
-	_box(right_arm,"Sleeve",Vector3(0,-.31,0),Vector3(.23,.65,.26),jacket)
+	_sphere(right_arm,"Sleeve",Vector3(0,-.31,0),Vector3(.28,.72,.30),jacket)
 	_sphere(right_arm,"Hand",Vector3(0,-.69,0),Vector3(.19,.20,.19),skin)
 	var left_leg := Node3D.new()
 	left_leg.position = Vector3(-.16,-.57,0)
 	root.add_child(left_leg)
-	_box(left_leg,"Trouser",Vector3(0,-.32,0),Vector3(.26,.66,.30),jeans)
-	_box(left_leg,"Shoe",Vector3(0,-.70,-.07),Vector3(.29,.15,.43),hair)
+	_sphere(left_leg,"Trouser",Vector3(0,-.32,0),Vector3(.28,.76,.33),jeans)
+	_box(left_leg,"Shoe",Vector3(0,-.70,-.07),Vector3(.31,.15,.46),sneaker)
 	var right_leg := Node3D.new()
 	right_leg.position = Vector3(.16,-.57,0)
 	root.add_child(right_leg)
-	_box(right_leg,"Trouser",Vector3(0,-.32,0),Vector3(.26,.66,.30),jeans)
-	_box(right_leg,"Shoe",Vector3(0,-.70,-.07),Vector3(.29,.15,.43),hair)
+	_sphere(right_leg,"Trouser",Vector3(0,-.32,0),Vector3(.28,.76,.33),jeans)
+	_box(right_leg,"Shoe",Vector3(0,-.70,-.07),Vector3(.31,.15,.46),sneaker)
 	if officer:
 		_box(root,"Police badge",Vector3(.18,.12,-.22),Vector3(.11,.13,.04),_mat(Color("c5ae57")))
 		_box(root,"Cap",Vector3(0,1.09,-.09),Vector3(.54,.11,.40),hair)
@@ -524,7 +531,7 @@ func _make_ui() -> void:
 	var labels := VBoxContainer.new()
 	top.add_child(labels)
 	var title := Label.new()
-	title.text = "ULTIMATE TASHKENT RP  |  V0.9 CITY DETAILS"
+	title.text = "ULTIMATE TASHKENT RP  |  V1.0 VISUAL CITY"
 	title.add_theme_font_size_override("font_size",20)
 	labels.add_child(title)
 	coins_label = Label.new()
@@ -684,7 +691,7 @@ func _process(delta: float) -> void:
 		if speed_label:
 			speed_label.text = "TEZLIK  %03d km/soat" % int(absf(car_velocity)*5.0) if car_mode else "PIYODA  •  WASD"
 		if fps_label:
-			fps_label.text = "FPS: %d | City Details" % Engine.get_frames_per_second()
+			fps_label.text = "FPS: %d | Visual City" % Engine.get_frames_per_second()
 		if navigation_label:
 			var focus_position: Vector3 = car.global_position if car_mode else player.global_position
 			var meters := int(focus_position.distance_to(mission_target))
