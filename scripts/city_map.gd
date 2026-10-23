@@ -5,7 +5,7 @@ var expanded := false
 var player_position := Vector3.ZERO
 var target_position := Vector3(65,0,65)
 var heading := 0.0
-const MAP_EXTENT := 155.0
+const MAP_EXTENT := 235.0
 const DISTRICTS := [
 	"Bektemir","Chilonzor","Yashnobod","Yakkasaroy",
 	"Mirzo Ulugbek","Mirobod","Olmazor","Sergeli",
@@ -42,7 +42,7 @@ func _draw() -> void:
 		draw_line(Vector2(x,origin.y),Vector2(x,origin.y+dimensions.y),Color("52676c"),1.0)
 		if i < 3:
 			draw_line(Vector2(origin.x,y),Vector2(origin.x+dimensions.x,y),Color("52676c"),1.0)
-	for road in [-90.0,0.0,90.0]:
+	for road in [-180.0,-90.0,0.0,90.0,180.0]:
 		var x: float = origin.x+(road+MAP_EXTENT)/(MAP_EXTENT*2.0)*dimensions.x
 		var y: float = origin.y+(road+MAP_EXTENT)/(MAP_EXTENT*2.0)*dimensions.y
 		draw_line(Vector2(x,origin.y),Vector2(x,origin.y+dimensions.y),Color("87999d"),3.0)
