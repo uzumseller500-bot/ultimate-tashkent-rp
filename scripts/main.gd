@@ -413,6 +413,9 @@ func _build_sedan(vehicle: Node3D, police: bool) -> void:
 		_box(vehicle,"Front light",Vector3(sx*.83,.36,-2.41),Vector3(.48,.22,.07),_mat(Color("f7eed4")))
 		_box(vehicle,"Rear light",Vector3(sx*.83,.36,2.42),Vector3(.46,.22,.07),red)
 	_box(vehicle,"Front grille",Vector3(0,.23,-2.45),Vector3(1.04,.26,.09),tire)
+	_box(vehicle,"Front number plate",Vector3(0,-.08,-2.54),Vector3(.84,.18,.04),chrome)
+	_box(vehicle,"Rear number plate",Vector3(0,-.07,2.52),Vector3(.84,.18,.04),chrome)
+	_box(vehicle,"Hood detail",Vector3(0,.755,-1.35),Vector3(1.45,.025,.65),paint)
 	_box(vehicle,"Front bumper",Vector3(0,-.22,-2.46),Vector3(2.35,.17,.11),chrome)
 	_box(vehicle,"Rear bumper",Vector3(0,-.22,2.46),Vector3(2.35,.17,.11),chrome)
 	if police:
@@ -444,7 +447,7 @@ func _make_police() -> void:
 		patrol.position = Vector3(7.0 if i == 0 else -97.0,.85,-116.0 if i == 0 else 110.0)
 		add_child(patrol)
 		_build_sedan(patrol,true)
-		police_cars.append({"node":patrol,"heading":0.0 if i==0 else PI})
+		police_cars.append({"node":patrol,"heading":0.0 if i==0 else PI,"base_z":patrol.position.z,"idle_dir":1.0 if i == 0 else -1.0})
 		var officer := Node3D.new()
 		officer.name = "Officer_%d" % i
 		officer.position = patrol.position+Vector3(3, -.85,0)
@@ -485,7 +488,7 @@ func _make_ui() -> void:
 	var labels := VBoxContainer.new()
 	top.add_child(labels)
 	var title := Label.new()
-	title.text = "ULTIMATE TASHKENT RP  |  V0.7 REAL CITY"
+	title.text = "ULTIMATE TASHKENT RP  |  V0.7.1 CITY PATROL"
 	title.add_theme_font_size_override("font_size",20)
 	labels.add_child(title)
 	coins_label = Label.new()
@@ -645,11 +648,20 @@ func _process(delta: float) -> void:
 		if speed_label:
 			speed_label.text = "TEZLIK  %03d km/soat" % int(absf(car_velocity)*5.0) if car_mode else "PIYODA  •  WASD"
 		if fps_label:
-			fps_label.text = "FPS: %d | Real City" % Engine.get_frames_per_second()
+			fps_label.text = "FPS: %d | City Patrol" % Engine.get_frames_per_second()
 		if navigation_label:
 			var focus_position: Vector3 = car.global_position if car_mode else player.global_position
 			var meters := int(focus_position.distance_to(mission_target))
 			navigation_label.text = "MANZIL: %d m  |  X:%d  Z:%d" % [meters, int(focus_position.x), int(focus_position.z)]
+
+func _blocked_by_patrol(candidate: Vector3) -> bool:
+	for patrol in police_cars:
+		var unit: Node3D = patrol["node"]
+		var diff := candidate - unit.position
+		diff.y = 0.0
+		if diff.length() < 5.0:
+			return true
+	return false
 
 func _blocked_for_vehicle(candidate: Vector3) -> bool:
 	for obstacle in car_obstacles:
@@ -658,7 +670,22 @@ func _blocked_for_vehicle(candidate: Vector3) -> bool:
 	return false
 
 func _update_patrols(delta: float) -> void:
+	# Patrol cars move slowly along their assigned road even when there is no alert.
 	if wanted_level == 0:
+		for patrol in police_cars:
+			var unit: Node3D = patrol["node"]
+			var direction_z: float = float(patrol["idle_dir"])
+			var next_z: float = unit.position.z + direction_z * 3.5 * delta
+			var base_z: float = float(patrol["base_z"])
+			if absf(next_z - base_z) > 26.0:
+				direction_z = -direction_z
+				patrol["idle_dir"] = direction_z
+				next_z = unit.position.z + direction_z * 3.5 * delta
+			var desired: Vector3 = Vector3(unit.position.x,unit.position.y,next_z)
+			if not _blocked_for_vehicle(desired) and desired.distance_to(car.position) > 8.0:
+				unit.position.z = next_z
+			unit.rotation.y = 0.0 if direction_z < 0.0 else PI
+		pursuit_time = 0.0
 		return
 	wanted_timer -= delta
 	var target: Vector3 = car.global_position if car_mode else player.global_position
@@ -669,13 +696,15 @@ func _update_patrols(delta: float) -> void:
 		direction.y = 0.0
 		var distance: float = direction.length()
 		nearest = minf(nearest,distance)
-		if distance > 4.0:
-			var step: Vector3 = direction.normalized() * delta * (10.0+float(wanted_level)*2.5)
-			var destination: Vector3 = police_vehicle.position + step
+		# Keep vehicle body clear of the player car rather than driving inside it.
+		var stop_distance: float = 6.7 if car_mode else 3.1
+		if distance > stop_distance:
+			var step_length: float = minf(delta * (10.0+float(wanted_level)*2.5),distance-stop_distance)
+			var destination: Vector3 = police_vehicle.position + direction.normalized()*step_length
 			if not _blocked_for_vehicle(destination):
 				police_vehicle.position = destination
 			police_vehicle.rotation.y = atan2(-direction.x,-direction.z)
-	if nearest < 5.0:
+	if nearest < (7.3 if car_mode else 3.7):
 		pursuit_time += delta
 		if pursuit_time > 2.5:
 			wanted_level = 0
@@ -704,7 +733,7 @@ func _physics_process(delta: float) -> void:
 		car.rotation.y = car_angle
 		var travel := Vector3(-sin(car_angle),0,-cos(car_angle))*car_velocity*delta
 		var candidate := car.position + travel
-		if _blocked_for_vehicle(candidate):
+		if _blocked_for_vehicle(candidate) or _blocked_by_patrol(candidate):
 			car_velocity = 0.0
 		else:
 			car.position = candidate
