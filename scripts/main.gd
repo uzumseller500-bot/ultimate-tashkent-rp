@@ -42,6 +42,8 @@ var batching_world := false
 var hud_update_timer := 0.0
 var fps_label: Label
 var navigation_label: Label
+var city_map: Control
+var map_overlay: Control
 var pedestrians: Array[Dictionary] = []
 
 func _ready() -> void:
@@ -393,7 +395,7 @@ func _make_ui() -> void:
 	var labels := VBoxContainer.new()
 	top.add_child(labels)
 	var title := Label.new()
-	title.text = "ULTIMATE TASHKENT RP  |  V0.5 LIVING CITY"
+	title.text = "ULTIMATE TASHKENT RP  |  V0.6 GPS MAP"
 	title.add_theme_font_size_override("font_size",20)
 	labels.add_child(title)
 	coins_label = Label.new()
@@ -415,6 +417,31 @@ func _make_ui() -> void:
 	information.text = "WASD - harakat  |  E - mashina  |  SHIFT - yugurish"
 	information.add_theme_font_size_override("font_size",14)
 	labels.add_child(information)
+	# Persistent top-right radar with a full-screen map on M.
+	var map_script: Script = load("res://scripts/city_map.gd")
+	city_map = Control.new()
+	city_map.set_script(map_script)
+	city_map.position = Vector2(0,0)
+	city_map.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	city_map.position = Vector2(-205,18)
+	city_map.custom_minimum_size = Vector2(188,188)
+	city_map.size = Vector2(188,188)
+	root.add_child(city_map)
+	map_overlay = Control.new()
+	map_overlay.set_script(map_script)
+	map_overlay.set_anchors_preset(Control.PRESET_CENTER)
+	map_overlay.position = Vector2(-300,-240)
+	map_overlay.size = Vector2(600,480)
+	map_overlay.visible = false
+	map_overlay.set("expanded",true)
+	root.add_child(map_overlay)
+	var map_button := Button.new()
+	map_button.text = "XARITA (M)"
+	map_button.set_anchors_preset(Control.PRESET_TOP_RIGHT)
+	map_button.position = Vector2(-205,209)
+	map_button.custom_minimum_size = Vector2(188,42)
+	root.add_child(map_button)
+	map_button.pressed.connect(_toggle_map)
 	# Right-side Android camera touch zone intentionally does not cover HUD buttons.
 	touch_pad = Control.new()
 	touch_pad.set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -445,6 +472,10 @@ func _make_ui() -> void:
 	note.position = Vector2(20,-24)
 	root.add_child(note)
 
+func _toggle_map() -> void:
+	map_overlay.visible = not map_overlay.visible
+	city_map.visible = not map_overlay.visible
+
 func _touch_button(parent: Control, label: String, pos: Vector2, key: String) -> void:
 	var btn := Button.new()
 	btn.text = label
@@ -471,6 +502,8 @@ func _input(event: InputEvent) -> void:
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.keycode == KEY_E:
 			_toggle_car()
+		if event.keycode == KEY_M:
+			_toggle_map()
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT:
 		mouse_look = event.pressed
 	if event is InputEventMouseMotion and mouse_look:
@@ -506,10 +539,13 @@ func _process(delta: float) -> void:
 	hud_update_timer += delta
 	if hud_update_timer >= 0.3:
 		hud_update_timer = 0.0
+		var current_pos: Vector3 = car.global_position if car_mode else player.global_position
+		city_map.call("update_navigation",current_pos,mission_target,car_angle if car_mode else player.rotation.y)
+		map_overlay.call("update_navigation",current_pos,mission_target,car_angle if car_mode else player.rotation.y)
 		if speed_label:
 			speed_label.text = "TEZLIK  %03d km/soat" % int(absf(car_velocity)*5.0) if car_mode else "PIYODA  •  WASD"
 		if fps_label:
-			fps_label.text = "FPS: %d | Living City" % Engine.get_frames_per_second()
+			fps_label.text = "FPS: %d | GPS Map" % Engine.get_frames_per_second()
 		if navigation_label:
 			var focus_position: Vector3 = car.global_position if car_mode else player.global_position
 			var meters := int(focus_position.distance_to(mission_target))
