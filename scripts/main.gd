@@ -239,6 +239,30 @@ func _make_world() -> void:
 			_cylinder(self,"Bus shelter post",Vector3(stop_x+dx,1.6,stop_z),.11,3.1,signal_dark)
 		_box(self,"Bus stop bench",Vector3(stop_x,0.8,stop_z+.4),Vector3(3.4,.22,.65),concrete)
 		_box(self,"Bus stop sign",Vector3(stop_x+3.1,2.6,stop_z),Vector3(.9,.9,.12),bus_blue)
+	# V0.4: urban RP points of interest, low-poly and batched for browser FPS.
+	var shop_wall := _mat(Color("d5c6a5"))
+	var shop_roof := _mat(Color("2c6c85"))
+	var shop_door := _mat(Color("23414d"))
+	var park_green := _mat(Color("437e56"))
+	var kiosk_orange := _mat(Color("c98041"))
+	for shop_x in [-45.0, 45.0, 125.0]:
+		var shop_z: float = -21.0
+		_box(self,"City shop",Vector3(shop_x,2.1,shop_z),Vector3(8.0,4.2,5.2),shop_wall)
+		_box(self,"Shop awning",Vector3(shop_x,4.45,shop_z+1.3),Vector3(9.0,.35,3.0),shop_roof)
+		_box(self,"Shop door",Vector3(shop_x,1.25,shop_z+2.68),Vector3(1.6,2.5,.10),shop_door)
+		for pane in [-2.7,2.7]:
+			_box(self,"Shop window",Vector3(shop_x+pane,2.0,shop_z+2.7),Vector3(1.65,1.65,.08),glass)
+	for kiosk_x in [-115.0, -35.0, 115.0]:
+		_box(self,"Street kiosk",Vector3(kiosk_x,1.45,35.0),Vector3(4.2,2.9,3.5),kiosk_orange)
+		_box(self,"Kiosk canopy",Vector3(kiosk_x,3.05,35.0),Vector3(5.2,.3,4.1),shop_roof)
+		_box(self,"Kiosk serving window",Vector3(kiosk_x,1.95,33.2),Vector3(2.8,1.25,.08),glass)
+	# Park benches and planter beds near the fountain plaza.
+	for bench_x in [26.0, 45.0, 64.0]:
+		_box(self,"Park bench seat",Vector3(bench_x,.72,-66.0),Vector3(3.6,.22,.8),shop_wall)
+		_box(self,"Park bench back",Vector3(bench_x,1.22,-66.35),Vector3(3.6,1.0,.18),shop_wall)
+		for leg_x in [-1.3,1.3]:
+			_box(self,"Park bench leg",Vector3(bench_x+leg_x,.37,-66.0),Vector3(.16,.7,.65),signal_dark)
+		_box(self,"Park flower bed",Vector3(bench_x,.16,-72.0),Vector3(4.5,.28,2.0),park_green)
 	# Crosswalks and roadside green strips.
 	for junction in [-90.0,0.0,90.0]:
 		for lane in [-90.0,0.0,90.0]:
@@ -334,7 +358,7 @@ func _make_ui() -> void:
 	var labels := VBoxContainer.new()
 	top.add_child(labels)
 	var title := Label.new()
-	title.text = "ULTIMATE TASHKENT RP  |  V0.3 CITY"
+	title.text = "ULTIMATE TASHKENT RP  |  V0.4 CITY LIFE"
 	title.add_theme_font_size_override("font_size",20)
 	labels.add_child(title)
 	coins_label = Label.new()
@@ -435,7 +459,7 @@ func _process(delta: float) -> void:
 		if speed_label:
 			speed_label.text = "TEZLIK  %03d km/soat" % int(absf(car_velocity)*5.0) if car_mode else "PIYODA  •  WASD"
 		if fps_label:
-			fps_label.text = "FPS: %d | City rejim" % Engine.get_frames_per_second()
+			fps_label.text = "FPS: %d | City Life" % Engine.get_frames_per_second()
 		if navigation_label:
 			var focus_position: Vector3 = car.global_position if car_mode else player.global_position
 			var meters := int(focus_position.distance_to(mission_target))
