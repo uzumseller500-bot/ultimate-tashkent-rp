@@ -496,6 +496,8 @@ func _make_ui() -> void:
 	labels.add_child(fps_label)
 	navigation_label = Label.new()
 	labels.add_child(navigation_label)
+	wanted_label = Label.new()
+	labels.add_child(wanted_label)
 	save_label = Label.new()
 	save_label.text = "Progress avtomatik saqlanadi"
 	labels.add_child(save_label)
@@ -638,6 +640,8 @@ func _process(delta: float) -> void:
 		var current_pos: Vector3 = car.global_position if car_mode else player.global_position
 		city_map.call("update_navigation",current_pos,mission_target,car_angle if car_mode else player.rotation.y)
 		map_overlay.call("update_navigation",current_pos,mission_target,car_angle if car_mode else player.rotation.y)
+		if wanted_label:
+			wanted_label.text = "QIDIRUV: %d/3  |  POLITSIYA" % wanted_level if wanted_level > 0 else "POLITSIYA: TINCH"
 		if speed_label:
 			speed_label.text = "TEZLIK  %03d km/soat" % int(absf(car_velocity)*5.0) if car_mode else "PIYODA  •  WASD"
 		if fps_label:
