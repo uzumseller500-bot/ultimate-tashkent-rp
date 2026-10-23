@@ -172,26 +172,26 @@ func _make_world() -> void:
 	var env := WorldEnvironment.new()
 	var res := Environment.new()
 	res.background_mode = Environment.BG_COLOR
-	res.background_color = Color("8bbdd5")
+	res.background_color = Color("a4cee3")
 	res.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
 	res.ambient_light_color = Color("d5e3e9")
-	res.ambient_light_energy = 0.30
+	res.ambient_light_energy = 0.48
 	res.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	env.environment = res
 	add_child(env)
 	var sun := DirectionalLight3D.new()
 	sun.rotation_degrees = Vector3(-52, -34, 0)
-	sun.light_energy = 0.68
+	sun.light_energy = 1.05
 	sun.shadow_enabled = false # Web performance: dynamic shadows off in Lite mode.
 	add_child(sun)
 	var ground := _mat(Color("65866a"))
-	var asphalt := _mat(Color("303840"))
-	var side := _mat(Color("838e8a"))
+	var asphalt := _mat(Color("30373c"))
+	var side := _mat(Color("b1b4ad"))
 	var stripe := _mat(Color("f1da95"))
 	var trunk := _mat(Color("684a36"))
-	var leaf := _mat(Color("317e59"))
-	var glass := _mat(Color("60a6b6"), 0.26)
-	var concrete := _mat(Color("a9a698"))
+	var leaf := _mat(Color("3c885d"))
+	var glass := _mat(Color("397d9a"), 0.18)
+	var concrete := _mat(Color("c4c0b4"))
 	var red := _mat(Color("ba6c5c"))
 	var blue := _mat(Color("658595"))
 	var white := _mat(Color("9ca9ad"))
@@ -226,12 +226,22 @@ func _make_world() -> void:
 			else:
 				var h := 11.0 + float(abs(ix*13+iz*7)%5)*6.0
 				var m: Material = facade[absi(ix*3+iz*5)%facade.size()]
+				var facade_dark := _mat(Color("304e5a"))
+				var facade_trim := _mat(Color("d2d1c7"))
 				_box(self, "Building", Vector3(x,h/2,z), Vector3(16,h,17),m,true)
 				for floor_i in range(1, int(h/4.0)):
+					var floor_y: float = float(floor_i)*4.0
+					_box(self,"Floor trim",Vector3(x,floor_y-1.35,z-8.61),Vector3(16.2,.13,.22),facade_trim)
 					for col_i in range(3):
-						_box(self,"Window",Vector3(x-5+col_i*5, floor_i*4.0,z-8.55),Vector3(2.7,2,0.07),glass)
+						var wx: float = x-5.0+float(col_i)*5.0
+						_box(self,"Window frame",Vector3(wx,floor_y,z-8.58),Vector3(3.15,2.42,.11),facade_dark)
+						_box(self,"Window glass",Vector3(wx,floor_y,z-8.66),Vector3(2.75,2.06,.09),glass)
+						_box(self,"Window center bar",Vector3(wx,floor_y,z-8.74),Vector3(.08,2.13,.09),facade_trim)
+						_box(self,"Window sill",Vector3(wx,floor_y-1.17,z-8.74),Vector3(3.3,.15,.3),facade_trim)
 				_box(self,"Roof rim",Vector3(x,h+0.25,z),Vector3(16.6,0.5,17.6),concrete)
 				_box(self,"Entrance",Vector3(x,1.6,z-8.65),Vector3(2.5,3.1,0.12),_mat(Color("334b52")))
+				_box(self,"Entrance canopy",Vector3(x,3.45,z-9.45),Vector3(4.4,.26,1.9),facade_trim)
+				_box(self,"Entrance step",Vector3(x,.13,z-9.25),Vector3(3.4,.26,1.2),concrete)
 				_box(self,"Base trim",Vector3(x,0.45,z-8.7),Vector3(16.1,0.65,0.15),side)
 	# A monumental central plaza, fountain and bazaar-style landmark.
 	_box(self,"Central square",Vector3(45,0.08,-45),Vector3(40,0.15,40),concrete)
@@ -320,6 +330,9 @@ func _make_human(root: Node3D, shade: Color, officer: bool = false) -> Dictionar
 	for x in [-.12,.12]:
 		_sphere(root,"Eye",Vector3(x,.77,-.252),Vector3(.06,.055,.045),hair)
 	_box(root,"Nose",Vector3(0,.66,-.273),Vector3(.08,.12,.09),skin)
+	_box(root,"Mouth",Vector3(0,.48,-.259),Vector3(.14,.025,.02),_mat(Color("875b50")))
+	_box(root,"Jacket collar",Vector3(0,.34,-.225),Vector3(.34,.13,.05),_mat(Color("d5c7ae")))
+	_box(root,"Jacket zipper",Vector3(0,-.12,-.206),Vector3(.026,.68,.03),_mat(Color("d2c7ae")))
 	var left_arm := Node3D.new()
 	left_arm.position = Vector3(-.43,.27,0)
 	root.add_child(left_arm)
@@ -400,7 +413,11 @@ func _build_sedan(vehicle: Node3D, police: bool) -> void:
 	_box(vehicle,"Bonnet",Vector3(0,.66,-1.6),Vector3(2.25,.15,1.55),paint)
 	_box(vehicle,"Trunk",Vector3(0,.67,1.76),Vector3(2.26,.15,1.13),paint)
 	_box(vehicle,"Cabin",Vector3(0,1.02,.15),Vector3(2.00,.78,2.08),window)
+	_box(vehicle,"Windshield upper edge",Vector3(0,1.38,-.91),Vector3(1.98,.08,.13),chrome)
+	_box(vehicle,"Windshield lower edge",Vector3(0,.71,-.91),Vector3(2.05,.09,.13),chrome)
+	_box(vehicle,"Rear glass trim",Vector3(0,1.10,1.22),Vector3(2.0,.08,.12),chrome)
 	_box(vehicle,"Roof",Vector3(0,1.47,.16),Vector3(1.94,.15,1.92),paint)
+	_box(vehicle,"Roof antenna",Vector3(0,1.61,1.04),Vector3(.07,.27,.07),tire)
 	for sx in [-1.0,1.0]:
 		for z in [-1.45,1.45]:
 			var wheel := _cylinder(vehicle,"Wheel",Vector3(sx*1.25,-.33,z),.51,.31,tire)
@@ -410,6 +427,10 @@ func _build_sedan(vehicle: Node3D, police: bool) -> void:
 		_box(vehicle,"Side mirror",Vector3(sx*1.31,.83,-.85),Vector3(.33,.19,.28),tire)
 		_box(vehicle,"Door handle",Vector3(sx*1.23,.50,-.27),Vector3(.055,.055,.22),chrome)
 		_box(vehicle,"Rear handle",Vector3(sx*1.23,.50,.83),Vector3(.055,.055,.22),chrome)
+		_box(vehicle,"Door separator",Vector3(sx*1.236,.37,.30),Vector3(.025,.66,.035),tire)
+		_box(vehicle,"Side sill",Vector3(sx*1.22,-.19,0),Vector3(.10,.11,2.6),chrome)
+		_box(vehicle,"Wheel arch trim front",Vector3(sx*1.21,.05,-1.45),Vector3(.08,.12,1.18),tire)
+		_box(vehicle,"Wheel arch trim rear",Vector3(sx*1.21,.05,1.45),Vector3(.08,.12,1.18),tire)
 		_box(vehicle,"Front light",Vector3(sx*.83,.36,-2.41),Vector3(.48,.22,.07),_mat(Color("f7eed4")))
 		_box(vehicle,"Rear light",Vector3(sx*.83,.36,2.42),Vector3(.46,.22,.07),red)
 	_box(vehicle,"Front grille",Vector3(0,.23,-2.45),Vector3(1.04,.26,.09),tire)
@@ -488,7 +509,7 @@ func _make_ui() -> void:
 	var labels := VBoxContainer.new()
 	top.add_child(labels)
 	var title := Label.new()
-	title.text = "ULTIMATE TASHKENT RP  |  V0.7.2 TRAFFIC FIX"
+	title.text = "ULTIMATE TASHKENT RP  |  V0.8 VISUAL UPGRADE"
 	title.add_theme_font_size_override("font_size",20)
 	labels.add_child(title)
 	coins_label = Label.new()
@@ -648,7 +669,7 @@ func _process(delta: float) -> void:
 		if speed_label:
 			speed_label.text = "TEZLIK  %03d km/soat" % int(absf(car_velocity)*5.0) if car_mode else "PIYODA  •  WASD"
 		if fps_label:
-			fps_label.text = "FPS: %d | Traffic Fix" % Engine.get_frames_per_second()
+			fps_label.text = "FPS: %d | Visual Upgrade" % Engine.get_frames_per_second()
 		if navigation_label:
 			var focus_position: Vector3 = car.global_position if car_mode else player.global_position
 			var meters := int(focus_position.distance_to(mission_target))
