@@ -5,7 +5,7 @@ extends Node3D
 
 const WALK_SPEED := 8.0
 const DRIVE_SPEED := 23.0
-const CITY_EXTENT := 155.0
+const CITY_EXTENT := 235.0
 
 var player: CharacterBody3D
 var car: Node3D
@@ -45,6 +45,16 @@ var navigation_label: Label
 var city_map: Control
 var map_overlay: Control
 var pedestrians: Array[Dictionary] = []
+var player_parts: Dictionary = {}
+var player_stride := 0.0
+var car_obstacles: Array[Dictionary] = []
+var police_cars: Array[Dictionary] = []
+var wanted_level := 0
+var wanted_timer := 0.0
+var pursuit_time := 0.0
+var player_health := 100
+var shot_timer := 0.0
+var wanted_label: Label
 
 func _ready() -> void:
 	_load_game()
@@ -52,6 +62,7 @@ func _ready() -> void:
 	_make_player()
 	_make_car()
 	_make_pedestrians()
+	_make_police()
 	_make_marker()
 	_make_ui()
 	_update_status()
@@ -114,6 +125,8 @@ func _box(parent: Node3D, name: String, pos: Vector3, size: Vector3, material: M
 	mesh_node.position = pos
 	mesh_node.material_override = material
 	parent.add_child(mesh_node)
+	if solid and parent == self and size.y > 1.7:
+		car_obstacles.append({"x":pos.x,"z":pos.z,"hx":size.x/2.0,"hz":size.z/2.0})
 	if solid:
 		var collider := StaticBody3D.new()
 		mesh_node.add_child(collider)
@@ -139,6 +152,20 @@ func _cylinder(parent: Node3D, name: String, pos: Vector3, radius: float, height
 	node.material_override = material
 	parent.add_child(node)
 	return node
+
+func _sphere(parent: Node3D, name: String, pos: Vector3, size: Vector3, material: Material) -> void:
+	var part := MeshInstance3D.new()
+	part.name = name
+	var mesh := SphereMesh.new()
+	mesh.radius = .5
+	mesh.height = 1.0
+	mesh.radial_segments = 10
+	mesh.rings = 6
+	part.mesh = mesh
+	part.position = pos
+	part.scale = size
+	part.material_override = material
+	parent.add_child(part)
 
 func _make_world() -> void:
 	batching_world = true
@@ -169,24 +196,24 @@ func _make_world() -> void:
 	var blue := _mat(Color("658595"))
 	var white := _mat(Color("9ca9ad"))
 	var gold := _mat(Color("c5a45b"))
-	_box(self, "Land", Vector3(0, -0.25, 0), Vector3(360,0.5,360), ground, true)
+	_box(self, "Land", Vector3(0, -0.25, 0), Vector3(510,0.5,510), ground, true)
 	# Broad north-south and east-west arterial roads, walkable pavements and lane marks.
-	for pos in [-90.0, 0.0, 90.0]:
-		_box(self, "East-west road", Vector3(0,0.018,pos), Vector3(330,0.04,22), asphalt)
-		_box(self, "North-south road", Vector3(pos,0.025,0), Vector3(22,0.04,330), asphalt)
-		for i in range(-15,16):
+	for pos in [-180.0,-90.0,0.0,90.0,180.0]:
+		_box(self, "East-west road", Vector3(0,0.018,pos), Vector3(490,0.04,22), asphalt)
+		_box(self, "North-south road", Vector3(pos,0.025,0), Vector3(22,0.04,490), asphalt)
+		for i in range(-24,25):
 			_box(self, "Lane", Vector3(i*10.0,0.055,pos), Vector3(4,0.015,0.23), stripe)
 			_box(self, "Lane", Vector3(pos,0.06,i*10.0), Vector3(0.23,0.015,4), stripe)
 		for margin in [-14.0,14.0]:
-			_box(self, "Sidewalk", Vector3(0,0.1,pos+margin), Vector3(330,0.2,4), side)
-			_box(self, "Sidewalk", Vector3(pos+margin,0.1,0), Vector3(4,0.2,330), side)
+			_box(self, "Sidewalk", Vector3(0,0.1,pos+margin), Vector3(490,0.2,4), side)
+			_box(self, "Sidewalk", Vector3(pos+margin,0.1,0), Vector3(4,0.2,490), side)
 	# Low-poly Tashkent-inspired blocks, apartment towers, office glass and park trees.
 	var facade := [concrete, red, blue, white, glass]
-	for ix in range(-3,4):
-		for iz in range(-3,4):
+	for ix in range(-5,6):
+		for iz in range(-5,6):
 			var x := ix * 43.0 + 23.0
 			var z := iz * 43.0 + 23.0
-			if absf(x) < 18.0 or absf(z) < 18.0:
+			if absf(x) < 18.0 or absf(z) < 18.0 or absf(absf(x)-180.0) < 21.0 or absf(absf(z)-180.0) < 21.0:
 				continue
 			if absf(x - 65.0) < 17.0 and absf(z - 65.0) < 17.0:
 				continue
@@ -225,8 +252,8 @@ func _make_world() -> void:
 	var signal_yellow := _mat(Color("c9a440"))
 	var signal_green := _mat(Color("36986d"))
 	var bus_blue := _mat(Color("326b96"))
-	for junction in [-90.0, 0.0, 90.0]:
-		for lane in [-90.0, 0.0, 90.0]:
+	for junction in [-180.0,-90.0,0.0,90.0,180.0]:
+		for lane in [-180.0,-90.0,0.0,90.0,180.0]:
 			for corner in [-1.0, 1.0]:
 				var sx: float = float(junction) + float(corner)*17.5
 				var sz: float = float(lane) + 17.5
@@ -251,13 +278,13 @@ func _make_world() -> void:
 	var kiosk_orange := _mat(Color("c98041"))
 	for shop_x in [-45.0, 45.0, 125.0]:
 		var shop_z: float = -21.0
-		_box(self,"City shop",Vector3(shop_x,2.1,shop_z),Vector3(8.0,4.2,5.2),shop_wall)
+		_box(self,"City shop",Vector3(shop_x,2.1,shop_z),Vector3(8.0,4.2,5.2),shop_wall,true)
 		_box(self,"Shop awning",Vector3(shop_x,4.45,shop_z+1.3),Vector3(9.0,.35,3.0),shop_roof)
 		_box(self,"Shop door",Vector3(shop_x,1.25,shop_z+2.68),Vector3(1.6,2.5,.10),shop_door)
 		for pane in [-2.7,2.7]:
 			_box(self,"Shop window",Vector3(shop_x+pane,2.0,shop_z+2.7),Vector3(1.65,1.65,.08),glass)
 	for kiosk_x in [-115.0, -35.0, 115.0]:
-		_box(self,"Street kiosk",Vector3(kiosk_x,1.45,35.0),Vector3(4.2,2.9,3.5),kiosk_orange)
+		_box(self,"Street kiosk",Vector3(kiosk_x,1.45,35.0),Vector3(4.2,2.9,3.5),kiosk_orange,true)
 		_box(self,"Kiosk canopy",Vector3(kiosk_x,3.05,35.0),Vector3(5.2,.3,4.1),shop_roof)
 		_box(self,"Kiosk serving window",Vector3(kiosk_x,1.95,33.2),Vector3(2.8,1.25,.08),glass)
 	# Park benches and planter beds near the fountain plaza.
@@ -268,8 +295,8 @@ func _make_world() -> void:
 			_box(self,"Park bench leg",Vector3(bench_x+leg_x,.37,-66.0),Vector3(.16,.7,.65),signal_dark)
 		_box(self,"Park flower bed",Vector3(bench_x,.16,-72.0),Vector3(4.5,.28,2.0),park_green)
 	# Crosswalks and roadside green strips.
-	for junction in [-90.0,0.0,90.0]:
-		for lane in [-90.0,0.0,90.0]:
+	for junction in [-180.0,-90.0,0.0,90.0,180.0]:
+		for lane in [-180.0,-90.0,0.0,90.0,180.0]:
 			for bar in range(7):
 				_box(self,"Crosswalk",Vector3(junction-7+bar*2.3,0.07,lane+10.0),Vector3(1.25,0.02,2.5),white)
 	# Decorative shrubs near central square.
@@ -280,89 +307,152 @@ func _make_world() -> void:
 	_flush_static_batches()
 	batching_world = false
 
+func _make_human(root: Node3D, shade: Color, officer: bool = false) -> Dictionary:
+	var jacket := _mat(shade)
+	var skin := _mat(Color("c99470"))
+	var jeans := _mat(Color("273340"))
+	var hair := _mat(Color("272629"))
+	_box(root,"Chest",Vector3(0,-.08,0),Vector3(.70,.88,.39),jacket)
+	_box(root,"Hips",Vector3(0,-.55,0),Vector3(.57,.19,.35),jeans)
+	_box(root,"Neck",Vector3(0,.39,0),Vector3(.18,.17,.18),skin)
+	_sphere(root,"Face",Vector3(0,.72,-.03),Vector3(.48,.55,.43),skin)
+	_sphere(root,"Hair",Vector3(0,.99,.05),Vector3(.51,.20,.47),hair)
+	for x in [-.12,.12]:
+		_sphere(root,"Eye",Vector3(x,.77,-.252),Vector3(.06,.055,.045),hair)
+	_box(root,"Nose",Vector3(0,.66,-.273),Vector3(.08,.12,.09),skin)
+	var left_arm := Node3D.new()
+	left_arm.position = Vector3(-.43,.27,0)
+	root.add_child(left_arm)
+	_box(left_arm,"Sleeve",Vector3(0,-.31,0),Vector3(.23,.65,.26),jacket)
+	_sphere(left_arm,"Hand",Vector3(0,-.69,0),Vector3(.19,.20,.19),skin)
+	var right_arm := Node3D.new()
+	right_arm.position = Vector3(.43,.27,0)
+	root.add_child(right_arm)
+	_box(right_arm,"Sleeve",Vector3(0,-.31,0),Vector3(.23,.65,.26),jacket)
+	_sphere(right_arm,"Hand",Vector3(0,-.69,0),Vector3(.19,.20,.19),skin)
+	var left_leg := Node3D.new()
+	left_leg.position = Vector3(-.16,-.57,0)
+	root.add_child(left_leg)
+	_box(left_leg,"Trouser",Vector3(0,-.32,0),Vector3(.26,.66,.30),jeans)
+	_box(left_leg,"Shoe",Vector3(0,-.70,-.07),Vector3(.29,.15,.43),hair)
+	var right_leg := Node3D.new()
+	right_leg.position = Vector3(.16,-.57,0)
+	root.add_child(right_leg)
+	_box(right_leg,"Trouser",Vector3(0,-.32,0),Vector3(.26,.66,.30),jeans)
+	_box(right_leg,"Shoe",Vector3(0,-.70,-.07),Vector3(.29,.15,.43),hair)
+	if officer:
+		_box(root,"Police badge",Vector3(.18,.12,-.22),Vector3(.11,.13,.04),_mat(Color("c5ae57")))
+		_box(root,"Cap",Vector3(0,1.09,-.09),Vector3(.54,.11,.40),hair)
+	return {"left_arm":left_arm,"right_arm":right_arm,"left_leg":left_leg,"right_leg":right_leg}
+
+func _animate_human(parts: Dictionary, phase: float) -> void:
+	var swing: float = sin(phase)*.42
+	(parts["left_leg"] as Node3D).rotation.x = swing
+	(parts["right_leg"] as Node3D).rotation.x = -swing
+	(parts["left_arm"] as Node3D).rotation.x = -swing*.75
+	(parts["right_arm"] as Node3D).rotation.x = swing*.75
+
 func _make_player() -> void:
 	player = CharacterBody3D.new()
 	player.name = "Player"
-	player.position = Vector3(0,1.2,25)
+	player.position = Vector3(0,1.3,25)
 	add_child(player)
-	var collision := CollisionShape3D.new()
-	var cap := CapsuleShape3D.new()
-	cap.radius = 0.55
-	cap.height = 2.2
-	collision.shape = cap
-	player.add_child(collision)
-	var body := _cylinder(player,"Character coat",Vector3(0,-0.05,0),0.51,1.35,_mat(Color("263b65")))
-	var head := _cylinder(player,"Character head",Vector3(0,0.92,0),0.33,0.52,_mat(Color("d1a585")))
-	_box(player,"Front marker",Vector3(0,0.2,-0.46),Vector3(.2,.25,.12),_mat(Color("e3d865")))
+	var shape := CollisionShape3D.new()
+	var capsule := CapsuleShape3D.new()
+	capsule.radius = .42
+	capsule.height = 2.45
+	shape.shape = capsule
+	player.add_child(shape)
+	player_parts = _make_human(player,Color("2d608b"))
 	camera = Camera3D.new()
 	camera.name = "FollowCamera"
 	camera.current = true
-	camera.far = 190.0
+	camera.far = 225.0
 	add_child(camera)
 
-# V0.5: animated citizens using light-weight procedural geometry.
 func _make_pedestrians() -> void:
-	var coats: Array[Color] = [Color("385b8b"),Color("8b493b"),Color("467c61"),Color("a78949"),Color("604b7f")]
-	var skin := _mat(Color("c99570"))
-	var dark := _mat(Color("28313c"))
-	for i in range(12):
-		var citizen := Node3D.new()
-		citizen.name = "Citizen_%02d" % i
-		add_child(citizen)
-		var lane_x: float = -14.5 if i % 2 == 0 else 14.5
-		var start_z: float = -125.0 + float(i / 2) * 45.0
-		citizen.position = Vector3(lane_x,0.0,start_z)
-		var coat := _mat(coats[i % coats.size()])
-		_box(citizen,"Torso",Vector3(0,1.32,0),Vector3(.62,.92,.36),coat)
-		_cylinder(citizen,"Head",Vector3(0,2.02,0),.23,.40,skin)
-		var left_arm := Node3D.new()
-		left_arm.position = Vector3(-.41,1.64,0)
-		citizen.add_child(left_arm)
-		_box(left_arm,"Left arm",Vector3(0,-.38,0),Vector3(.20,.78,.24),coat)
-		var right_arm := Node3D.new()
-		right_arm.position = Vector3(.41,1.64,0)
-		citizen.add_child(right_arm)
-		_box(right_arm,"Right arm",Vector3(0,-.38,0),Vector3(.20,.78,.24),coat)
-		var left_leg := Node3D.new()
-		left_leg.position = Vector3(-.17,.91,0)
-		citizen.add_child(left_leg)
-		_box(left_leg,"Left leg",Vector3(0,-.42,0),Vector3(.24,.82,.26),dark)
-		var right_leg := Node3D.new()
-		right_leg.position = Vector3(.17,.91,0)
-		citizen.add_child(right_leg)
-		_box(right_leg,"Right leg",Vector3(0,-.42,0),Vector3(.24,.82,.26),dark)
-		pedestrians.append({"node":citizen,"left_arm":left_arm,"right_arm":right_arm,"left_leg":left_leg,"right_leg":right_leg,"direction":1.0 if i % 3 != 0 else -1.0,"phase":float(i)*1.5,"speed":1.1+float(i%4)*.18})
+	var outfits: Array[Color] = [Color("43649a"),Color("995546"),Color("3f8369"),Color("b28a40"),Color("73518b")]
+	var lanes: Array[float] = [-194.5,-165.5,-104.5,-75.5,-14.5,14.5,75.5,104.5,165.5,194.5]
+	for i in range(30):
+		var npc := Node3D.new()
+		npc.name = "Citizen_%02d" % i
+		add_child(npc)
+		npc.position = Vector3(lanes[i%lanes.size()],0,-192.0+float(i*37%38)*10.0)
+		var skeleton := Node3D.new()
+		skeleton.position.y = 1.30
+		npc.add_child(skeleton)
+		var parts := _make_human(skeleton,outfits[i%outfits.size()])
+		parts["node"] = npc
+		parts["direction"] = 1.0 if i%3 != 0 else -1.0
+		parts["phase"] = float(i)*1.5
+		parts["speed"] = 1.1+float(i%4)*.2
+		parts["knocked"] = 0.0
+		pedestrians.append(parts)
+
+func _build_sedan(vehicle: Node3D, police: bool) -> void:
+	var paint := _mat(Color("eeeeea") if police else Color("e4ac1e"),.28)
+	var tire := _mat(Color("1a2429"))
+	var window := _mat(Color("326276"),.15)
+	var chrome := _mat(Color("b8bec3"),.34)
+	var red := _mat(Color("c72d40"))
+	_box(vehicle,"Chassis",Vector3(0,-.13,0),Vector3(2.38,.69,4.8),tire)
+	_box(vehicle,"Body",Vector3(0,.20,0),Vector3(2.42,.84,4.75),paint)
+	_box(vehicle,"Bonnet",Vector3(0,.66,-1.6),Vector3(2.25,.15,1.55),paint)
+	_box(vehicle,"Trunk",Vector3(0,.67,1.76),Vector3(2.26,.15,1.13),paint)
+	_box(vehicle,"Cabin",Vector3(0,1.02,.15),Vector3(2.00,.78,2.08),window)
+	_box(vehicle,"Roof",Vector3(0,1.47,.16),Vector3(1.94,.15,1.92),paint)
+	for sx in [-1.0,1.0]:
+		for z in [-1.45,1.45]:
+			var wheel := _cylinder(vehicle,"Wheel",Vector3(sx*1.25,-.33,z),.51,.31,tire)
+			wheel.rotation_degrees.z = 90
+			var rim := _cylinder(vehicle,"Rim",Vector3(sx*1.43,-.33,z),.29,.05,chrome)
+			rim.rotation_degrees.z = 90
+		_box(vehicle,"Side mirror",Vector3(sx*1.31,.83,-.85),Vector3(.33,.19,.28),tire)
+		_box(vehicle,"Door handle",Vector3(sx*1.23,.50,-.27),Vector3(.055,.055,.22),chrome)
+		_box(vehicle,"Rear handle",Vector3(sx*1.23,.50,.83),Vector3(.055,.055,.22),chrome)
+		_box(vehicle,"Front light",Vector3(sx*.83,.36,-2.41),Vector3(.48,.22,.07),_mat(Color("f7eed4")))
+		_box(vehicle,"Rear light",Vector3(sx*.83,.36,2.42),Vector3(.46,.22,.07),red)
+	_box(vehicle,"Front grille",Vector3(0,.23,-2.45),Vector3(1.04,.26,.09),tire)
+	_box(vehicle,"Front bumper",Vector3(0,-.22,-2.46),Vector3(2.35,.17,.11),chrome)
+	_box(vehicle,"Rear bumper",Vector3(0,-.22,2.46),Vector3(2.35,.17,.11),chrome)
+	if police:
+		var blue := _mat(Color("2151a0"))
+		_box(vehicle,"Police stripe",Vector3(0,.25,2.44),Vector3(1.07,.28,.05),blue)
+		_box(vehicle,"Lightbar",Vector3(0,1.63,.15),Vector3(1.3,.12,.42),tire)
+		_box(vehicle,"Blue siren",Vector3(-.36,1.74,.15),Vector3(.55,.16,.32),blue)
+		_box(vehicle,"Red siren",Vector3(.36,1.74,.15),Vector3(.55,.16,.32),red)
 
 func _make_car() -> void:
 	car = Node3D.new()
 	car.name = "DriveableCar"
-	car.position = Vector3(8,0.85,25)
+	car.position = Vector3(8,.85,25)
 	add_child(car)
-	var paint := _mat(Color("d8a323"), 0.28)
-	var black := _mat(Color("18252c"), 0.6)
-	var glass := _mat(Color("2b5368"), 0.12)
-	var metal := _mat(Color("a9b0b3"), 0.38)
-	var red_light := _mat(Color("a82d30"), 0.32)
-	var lamp := _mat(Color("fff0c5"), 0.18)
-	_box(car,"Car lower chassis",Vector3(0,-0.10,0),Vector3(2.5,0.7,4.9),black)
-	_box(car,"Body panels",Vector3(0,0.18,0),Vector3(2.5,0.82,4.9),paint)
-	_box(car,"Bonnet",Vector3(0,0.53,-1.65),Vector3(2.35,0.12,1.55),paint)
-	_box(car,"Roof",Vector3(0,1.27,0.10),Vector3(2.1,0.16,2.15),paint)
-	_box(car,"Front windscreen",Vector3(0,0.97,-1.04),Vector3(2.05,0.69,0.11),glass)
-	_box(car,"Rear windscreen",Vector3(0,0.97,1.15),Vector3(2.05,0.67,0.11),glass)
-	for side_x in [-1.0,1.0]:
-		for z in [-1.54,1.54]:
-			var wheel := _cylinder(car,"Tyre",Vector3(side_x*1.27,-0.34,z),0.52,0.29,black)
-			wheel.rotation_degrees.z = 90
-			var hub := _cylinder(car,"Wheel alloy",Vector3(side_x*1.43,-0.34,z),0.26,0.04,metal)
-			hub.rotation_degrees.z = 90
-		_box(car,"Side window",Vector3(side_x*1.10,0.99,0.08),Vector3(0.06,0.55,1.88),glass)
-		_box(car,"Mirror",Vector3(side_x*1.37,0.79,-0.88),Vector3(.34,.19,.36),black)
-		_box(car,"Headlamp",Vector3(side_x*.85,.27,-2.49),Vector3(.52,.22,.07),lamp)
-		_box(car,"Rear light",Vector3(side_x*.87,.27,2.49),Vector3(.52,.22,.07),red_light)
-	_box(car,"Front grille",Vector3(0,.12,-2.51),Vector3(1.08,.20,.05),black)
-	_box(car,"Front bumper",Vector3(0,-.22,-2.49),Vector3(2.35,.18,.12),metal)
-	_box(car,"Rear bumper",Vector3(0,-.22,2.49),Vector3(2.35,.18,.12),metal)
+	_build_sedan(car,false)
+	var parked_body := StaticBody3D.new()
+	car.add_child(parked_body)
+	var shape := CollisionShape3D.new()
+	var box := BoxShape3D.new()
+	box.size = Vector3(2.3,1.5,4.6)
+	shape.shape = box
+	shape.position.y = .3
+	parked_body.add_child(shape)
+
+func _make_police() -> void:
+	for i in range(2):
+		var patrol := Node3D.new()
+		patrol.name = "PolicePatrol_%d" % i
+		patrol.position = Vector3(7.0 if i == 0 else -97.0,.85,-116.0 if i == 0 else 110.0)
+		add_child(patrol)
+		_build_sedan(patrol,true)
+		police_cars.append({"node":patrol,"heading":0.0 if i==0 else PI})
+		var officer := Node3D.new()
+		officer.name = "Officer_%d" % i
+		officer.position = patrol.position+Vector3(3, -.85,0)
+		add_child(officer)
+		var body := Node3D.new()
+		body.position.y = 1.30
+		officer.add_child(body)
+		_make_human(body,Color("244778"),true)
 
 func _make_marker() -> void:
 	mission_marker = _cylinder(self,"Mission waypoint",mission_target + Vector3(0,4,0),2.4,8,_mat(Color(0.12,0.9,0.83,0.55)))
