@@ -631,6 +631,7 @@ func _process(delta: float) -> void:
 		(npc["right_leg"] as Node3D).rotation.x = -swing
 		(npc["left_arm"] as Node3D).rotation.x = -swing*.75
 		(npc["right_arm"] as Node3D).rotation.x = swing*.75
+	_update_patrols(delta)
 	hud_update_timer += delta
 	if hud_update_timer >= 0.3:
 		hud_update_timer = 0.0
@@ -651,6 +652,39 @@ func _blocked_for_vehicle(candidate: Vector3) -> bool:
 		if absf(candidate.x - float(obstacle["x"])) < float(obstacle["hx"]) + 1.4 and absf(candidate.z - float(obstacle["z"])) < float(obstacle["hz"]) + 2.2:
 			return true
 	return false
+
+func _update_patrols(delta: float) -> void:
+	if wanted_level == 0:
+		return
+	wanted_timer -= delta
+	var target: Vector3 = car.global_position if car_mode else player.global_position
+	var nearest: float = 10000.0
+	for patrol in police_cars:
+		var police_vehicle: Node3D = patrol["node"]
+		var direction: Vector3 = target - police_vehicle.global_position
+		direction.y = 0.0
+		var distance: float = direction.length()
+		nearest = minf(nearest,distance)
+		if distance > 4.0:
+			var step: Vector3 = direction.normalized() * delta * (10.0+float(wanted_level)*2.5)
+			var destination: Vector3 = police_vehicle.position + step
+			if not _blocked_for_vehicle(destination):
+				police_vehicle.position = destination
+			police_vehicle.rotation.y = atan2(-direction.x,-direction.z)
+	if nearest < 5.0:
+		pursuit_time += delta
+		if pursuit_time > 2.5:
+			wanted_level = 0
+			wanted_timer = 0.0
+			pursuit_time = 0.0
+			car_velocity = 0.0
+			cash = maxi(0,cash-150)
+			_save_game()
+			_update_status()
+	else:
+		pursuit_time = 0.0
+	if wanted_timer <= 0.0:
+		wanted_level = 0
 
 func _physics_process(delta: float) -> void:
 	var forward := float(Input.is_key_pressed(KEY_W) or Input.is_key_pressed(KEY_UP) or controls["forward"])
