@@ -485,7 +485,7 @@ func _make_ui() -> void:
 	var labels := VBoxContainer.new()
 	top.add_child(labels)
 	var title := Label.new()
-	title.text = "ULTIMATE TASHKENT RP  |  V0.6 GPS MAP"
+	title.text = "ULTIMATE TASHKENT RP  |  V0.7 REAL CITY"
 	title.add_theme_font_size_override("font_size",20)
 	labels.add_child(title)
 	coins_label = Label.new()
@@ -635,7 +635,7 @@ func _process(delta: float) -> void:
 		if speed_label:
 			speed_label.text = "TEZLIK  %03d km/soat" % int(absf(car_velocity)*5.0) if car_mode else "PIYODA  •  WASD"
 		if fps_label:
-			fps_label.text = "FPS: %d | GPS Map" % Engine.get_frames_per_second()
+			fps_label.text = "FPS: %d | Real City" % Engine.get_frames_per_second()
 		if navigation_label:
 			var focus_position: Vector3 = car.global_position if car_mode else player.global_position
 			var meters := int(focus_position.distance_to(mission_target))
