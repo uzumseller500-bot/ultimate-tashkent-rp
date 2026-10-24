@@ -532,7 +532,7 @@ func _make_ui() -> void:
 	var labels := VBoxContainer.new()
 	top.add_child(labels)
 	var title := Label.new()
-	title.text = "ULTIMATE TASHKENT RP  |  V1.0.1 LIGHT FIX"
+	title.text = "ULTIMATE TASHKENT RP  |  V1.0.2 FPS BOOST"
 	title.add_theme_font_size_override("font_size",20)
 	labels.add_child(title)
 	coins_label = Label.new()
@@ -675,6 +675,9 @@ func _process(delta: float) -> void:
 			citizen.position.z = clampf(citizen.position.z,-137.0,137.0)
 		citizen.rotation.y = 0.0 if float(npc["direction"]) < 0.0 else PI
 		npc["phase"] = float(npc["phase"]) + delta*7.0
+		# The city keeps simulating distant citizens without animating dozens of meshes.
+		if not citizen.visible:
+			continue
 		var swing: float = sin(float(npc["phase"]))*0.42
 		(npc["left_leg"] as Node3D).rotation.x = swing
 		(npc["right_leg"] as Node3D).rotation.x = -swing
@@ -685,6 +688,11 @@ func _process(delta: float) -> void:
 	if hud_update_timer >= 0.3:
 		hud_update_timer = 0.0
 		var current_pos: Vector3 = car.global_position if car_mode else player.global_position
+		# Distance-based LOD: keep NPCs close to the player, hide distant geometry.
+		# 0.3-second updates avoid per-frame distance checks for every character mesh.
+		for npc in pedestrians:
+			var person: Node3D = npc["node"]
+			person.visible = person.global_position.distance_squared_to(current_pos) < 18225.0
 		city_map.call("update_navigation",current_pos,mission_target,car_angle if car_mode else player.rotation.y)
 		map_overlay.call("update_navigation",current_pos,mission_target,car_angle if car_mode else player.rotation.y)
 		if wanted_label:
@@ -692,7 +700,7 @@ func _process(delta: float) -> void:
 		if speed_label:
 			speed_label.text = "TEZLIK  %03d km/soat" % int(absf(car_velocity)*5.0) if car_mode else "PIYODA  •  WASD"
 		if fps_label:
-			fps_label.text = "FPS: %d | Light Fix" % Engine.get_frames_per_second()
+			fps_label.text = "FPS: %d | Adaptive NPC" % Engine.get_frames_per_second()
 		if navigation_label:
 			var focus_position: Vector3 = car.global_position if car_mode else player.global_position
 			var meters := int(focus_position.distance_to(mission_target))
