@@ -435,12 +435,19 @@ func _build_sedan(vehicle: Node3D, police: bool) -> void:
 	_box(vehicle,"Body",Vector3(0,.20,0),Vector3(2.42,.84,4.75),paint)
 	_box(vehicle,"Bonnet",Vector3(0,.66,-1.6),Vector3(2.25,.15,1.55),paint)
 	_box(vehicle,"Trunk",Vector3(0,.67,1.76),Vector3(2.26,.15,1.13),paint)
-	_box(vehicle,"Cabin",Vector3(0,1.02,.15),Vector3(2.00,.78,2.08),window)
+	# A lower glasshouse with sloping front/rear glazing replaces the square cabin.
+	_box(vehicle,"Cabin",Vector3(0,1.01,.17),Vector3(1.96,.64,1.78),window)
+	var windshield := _box(vehicle,"Angled windshield",Vector3(0,.98,-.86),Vector3(1.92,.055,.85),window)
+	windshield.rotation_degrees.x = -48.0
+	var rear_glass := _box(vehicle,"Angled rear window",Vector3(0,1.02,1.15),Vector3(1.92,.055,.69),window)
+	rear_glass.rotation_degrees.x = 45.0
 	_box(vehicle,"Windshield upper edge",Vector3(0,1.38,-.91),Vector3(1.98,.08,.13),chrome)
 	_box(vehicle,"Windshield lower edge",Vector3(0,.71,-.91),Vector3(2.05,.09,.13),chrome)
 	_box(vehicle,"Rear glass trim",Vector3(0,1.10,1.22),Vector3(2.0,.08,.12),chrome)
-	_box(vehicle,"Roof",Vector3(0,1.47,.16),Vector3(1.94,.15,1.92),paint)
-	_box(vehicle,"Roof antenna",Vector3(0,1.61,1.04),Vector3(.07,.27,.07),tire)
+	_box(vehicle,"Roof",Vector3(0,1.41,.16),Vector3(1.90,.12,1.62),paint)
+	_box(vehicle,"Front hood contour",Vector3(0,.756,-1.69),Vector3(1.92,.035,1.28),paint)
+	_box(vehicle,"Rear trunk contour",Vector3(0,.754,1.75),Vector3(1.98,.035,.91),paint)
+	_box(vehicle,"Roof antenna",Vector3(0,1.56,.94),Vector3(.06,.22,.06),tire)
 	for sx in [-1.0,1.0]:
 		for z in [-1.45,1.45]:
 			var wheel := _cylinder(vehicle,"Wheel",Vector3(sx*1.25,-.33,z),.51,.31,tire)
@@ -448,6 +455,10 @@ func _build_sedan(vehicle: Node3D, police: bool) -> void:
 			var rim := _cylinder(vehicle,"Rim",Vector3(sx*1.43,-.33,z),.29,.05,chrome)
 			rim.rotation_degrees.z = 90
 		_box(vehicle,"Side mirror",Vector3(sx*1.31,.83,-.85),Vector3(.33,.19,.28),tire)
+		_box(vehicle,"Side glass front",Vector3(sx*.993,1.08,-.37),Vector3(.025,.42,.64),window)
+		_box(vehicle,"Side glass rear",Vector3(sx*.993,1.08,.53),Vector3(.025,.42,.61),window)
+		_box(vehicle,"Window divider",Vector3(sx*1.007,1.07,.07),Vector3(.037,.53,.06),paint)
+		_box(vehicle,"Mirror glass",Vector3(sx*1.49,.85,-.85),Vector3(.035,.12,.20),chrome)
 		_box(vehicle,"Door handle",Vector3(sx*1.23,.50,-.27),Vector3(.055,.055,.22),chrome)
 		_box(vehicle,"Rear handle",Vector3(sx*1.23,.50,.83),Vector3(.055,.055,.22),chrome)
 		_box(vehicle,"Door separator",Vector3(sx*1.236,.37,.30),Vector3(.025,.66,.035),tire)
@@ -457,6 +468,8 @@ func _build_sedan(vehicle: Node3D, police: bool) -> void:
 		_box(vehicle,"Front light",Vector3(sx*.83,.36,-2.41),Vector3(.48,.22,.07),_mat(Color("f7eed4")))
 		_box(vehicle,"Rear light",Vector3(sx*.83,.36,2.42),Vector3(.46,.22,.07),red)
 	_box(vehicle,"Front grille",Vector3(0,.23,-2.45),Vector3(1.04,.26,.09),tire)
+	_box(vehicle,"Grille chrome line",Vector3(0,.28,-2.505),Vector3(.91,.035,.018),chrome)
+	_box(vehicle,"Rear boot badge",Vector3(0,.43,2.445),Vector3(.17,.10,.035),chrome)
 	_box(vehicle,"Front number plate",Vector3(0,-.08,-2.54),Vector3(.84,.18,.04),chrome)
 	_box(vehicle,"Rear number plate",Vector3(0,-.07,2.52),Vector3(.84,.18,.04),chrome)
 	_box(vehicle,"Hood detail",Vector3(0,.755,-1.35),Vector3(1.45,.025,.65),paint)
@@ -532,7 +545,7 @@ func _make_ui() -> void:
 	var labels := VBoxContainer.new()
 	top.add_child(labels)
 	var title := Label.new()
-	title.text = "ULTIMATE TASHKENT RP  |  V1.0.2 FPS BOOST"
+	title.text = "ULTIMATE TASHKENT RP  |  V1.1 SEDAN REDESIGN"
 	title.add_theme_font_size_override("font_size",20)
 	labels.add_child(title)
 	coins_label = Label.new()
@@ -700,7 +713,7 @@ func _process(delta: float) -> void:
 		if speed_label:
 			speed_label.text = "TEZLIK  %03d km/soat" % int(absf(car_velocity)*5.0) if car_mode else "PIYODA  •  WASD"
 		if fps_label:
-			fps_label.text = "FPS: %d | Adaptive NPC" % Engine.get_frames_per_second()
+			fps_label.text = "FPS: %d | Sedan Redesign" % Engine.get_frames_per_second()
 		if navigation_label:
 			var focus_position: Vector3 = car.global_position if car_mode else player.global_position
 			var meters := int(focus_position.distance_to(mission_target))
