@@ -6,6 +6,12 @@ var player_position := Vector3.ZERO
 var target_position := Vector3(65,0,65)
 var heading := 0.0
 const MAP_EXTENT := 235.0
+const POINTS_OF_INTEREST := [
+	{"name":"BANK", "position":Vector3(-63,0,56), "color":Color("f2c65d")},
+	{"name":"POLITSIYA", "position":Vector3(109,0,-73), "color":Color("55aef2")},
+	{"name":"SHIFOXONA", "position":Vector3(45,0,-17), "color":Color("ef6f78")},
+	{"name":"ISH", "position":Vector3(8,0,16), "color":Color("64d99b")}
+]
 const DISTRICTS := [
 	"Bektemir","Chilonzor","Yashnobod","Yakkasaroy",
 	"Mirzo Ulugbek","Mirobod","Olmazor","Sergeli",
@@ -47,6 +53,11 @@ func _draw() -> void:
 		var y: float = origin.y+(road+MAP_EXTENT)/(MAP_EXTENT*2.0)*dimensions.y
 		draw_line(Vector2(x,origin.y),Vector2(x,origin.y+dimensions.y),Color("87999d"),3.0)
 		draw_line(Vector2(origin.x,y),Vector2(origin.x+dimensions.x,y),Color("87999d"),3.0)
+	for point in POINTS_OF_INTEREST:
+		var icon := _project(point["position"], area)
+		draw_circle(icon, 5.0 if expanded else 3.5, point["color"])
+		if expanded:
+			draw_string(ThemeDB.fallback_font, icon+Vector2(7,4), point["name"], HORIZONTAL_ALIGNMENT_LEFT, -1, 11, Color.WHITE)
 	if expanded:
 		var font := ThemeDB.fallback_font
 		for i in range(DISTRICTS.size()):
@@ -65,6 +76,7 @@ func _draw() -> void:
 	if expanded:
 		draw_string(ThemeDB.fallback_font,Vector2(24,20),"TOSHKENT RP | 12 TUMAN | GPS",HORIZONTAL_ALIGNMENT_LEFT,-1,14,Color.WHITE)
 		draw_string(ThemeDB.fallback_font,Vector2(24,size.y-7),"Sariq: manzil   Ko'k: siz   M: yopish",HORIZONTAL_ALIGNMENT_LEFT,-1,13,Color.WHITE)
+		draw_string(ThemeDB.fallback_font,Vector2(size.x-42,20),"N",HORIZONTAL_ALIGNMENT_LEFT,-1,14,Color("f2c65d"))
 
 func _project(world: Vector3,area: Rect2) -> Vector2:
 	return Vector2(area.position.x+clampf((world.x+MAP_EXTENT)/(2.0*MAP_EXTENT),0,1)*area.size.x,area.position.y+clampf((world.z+MAP_EXTENT)/(2.0*MAP_EXTENT),0,1)*area.size.y)

@@ -6,6 +6,7 @@ extends Node3D
 const WALK_SPEED := 8.0
 const DRIVE_SPEED := 23.0
 const CITY_EXTENT := 235.0
+const POPULATION_COUNT := 60
 
 var player: CharacterBody3D
 var car: Node3D
@@ -17,6 +18,11 @@ var coins_label: Label
 var action_button: Button
 var touch_pad: Control
 var car_mode := false
+var fuel := 100.0
+var job := "courier"
+var job_pickup := true
+const DEPOT := Vector3(8, 0, 16)
+const JOB_STOPS := [Vector3(0,0,-90), Vector3(90,0,0), Vector3(-90,0,90)]
 var cash := 500
 const SAVE_PATH := "user://tashkent_rp_save.json"
 var speed_label: Label
@@ -24,7 +30,7 @@ var save_label: Label
 var car_velocity := 0.0
 var engine_time := 0.0
 var mission_stage := 0
-var mission_target := Vector3(65, 0, 65)
+var mission_target := Vector3(8, 0, 16)
 var view_yaw := 0.0
 var view_pitch := -0.30
 var car_angle := 0.0
@@ -55,6 +61,9 @@ var pursuit_time := 0.0
 var player_health := 100
 var shot_timer := 0.0
 var wanted_label: Label
+var player_role := "civilian"
+var rp: Node
+var autosave_timer := 0.0
 
 func _ready() -> void:
 	_load_game()
@@ -65,6 +74,13 @@ func _ready() -> void:
 	_make_police()
 	_make_marker()
 	_make_ui()
+	rp = Node.new()
+	rp.name = "RPSystem"
+	rp.set_script(load("res://scripts/rp_system.gd"))
+	add_child(rp)
+	var online := Node.new()
+	online.set_script(load("res://scripts/online.gd"))
+	add_child(online)
 	_update_status()
 	# Do not capture the mouse: it should be playable using a normal mouse and touchscreen.
 
@@ -171,11 +187,19 @@ func _make_world() -> void:
 	batching_world = true
 	var env := WorldEnvironment.new()
 	var res := Environment.new()
-	res.background_mode = Environment.BG_COLOR
-	res.background_color = Color("a4cee3")
-	res.ambient_light_source = Environment.AMBIENT_SOURCE_COLOR
-	res.ambient_light_color = Color("d5e3e9")
-	res.ambient_light_energy = 0.24
+	var sky_material := ProceduralSkyMaterial.new()
+	sky_material.sky_top_color = Color("4b79a8")
+	sky_material.sky_horizon_color = Color("d8c7ae")
+	sky_material.ground_bottom_color = Color("3b4550")
+	sky_material.ground_horizon_color = Color("b5a994")
+	sky_material.sun_angle_max = 18.0
+	var sky := Sky.new()
+	sky.sky_material = sky_material
+	res.sky = sky
+	res.background_mode = Environment.BG_SKY
+	res.ambient_light_source = Environment.AMBIENT_SOURCE_SKY
+	res.reflected_light_source = Environment.REFLECTION_SOURCE_SKY
+	res.ambient_light_energy = 0.42
 	res.tonemap_mode = Environment.TONE_MAPPER_FILMIC
 	res.tonemap_exposure = 0.75
 	res.fog_enabled = true
@@ -409,7 +433,7 @@ func _make_player() -> void:
 func _make_pedestrians() -> void:
 	var outfits: Array[Color] = [Color("43649a"),Color("995546"),Color("3f8369"),Color("b28a40"),Color("73518b")]
 	var lanes: Array[float] = [-194.5,-165.5,-104.5,-75.5,-14.5,14.5,75.5,104.5,165.5,194.5]
-	for i in range(30):
+	for i in range(POPULATION_COUNT):
 		var npc := Node3D.new()
 		npc.name = "Citizen_%02d" % i
 		add_child(npc)
@@ -423,10 +447,14 @@ func _make_pedestrians() -> void:
 		parts["phase"] = float(i)*1.5
 		parts["speed"] = 1.1+float(i%4)*.2
 		parts["knocked"] = 0.0
+		parts["health"] = 100
+		parts["surrendered"] = false
+		parts["fleeing"] = false
+		parts["criminal"] = i % 9 == 0
 		pedestrians.append(parts)
 
-func _build_sedan(vehicle: Node3D, police: bool) -> void:
-	var paint := _mat(Color("eeeeea") if police else Color("e4ac1e"),.28)
+func _build_sedan(vehicle: Node3D, police: bool, paint_color: Color = Color("e4ac1e")) -> void:
+	var paint := _mat(Color("eeeeea") if police else paint_color,.28)
 	var tire := _mat(Color("1a2429"))
 	var window := _mat(Color("326276"),.15)
 	var chrome := _mat(Color("b8bec3"),.34)
@@ -529,13 +557,12 @@ func _make_ui() -> void:
 	ui.add_child(root)
 	var top := PanelContainer.new()
 	top.position = Vector2(18,16)
-	top.custom_minimum_size = Vector2(415,0)
+	top.custom_minimum_size = Vector2(390,0)
 	var panel_style := StyleBoxFlat.new()
 	panel_style.bg_color = Color(0.045,0.09,0.13,0.86)
-	panel_style.corner_radius_top_left = 12
-	panel_style.corner_radius_top_right = 12
-	panel_style.corner_radius_bottom_left = 12
-	panel_style.corner_radius_bottom_right = 12
+	panel_style.border_color = Color(0.28,0.82,0.88,0.72)
+	panel_style.set_border_width_all(1)
+	panel_style.set_corner_radius_all(16)
 	panel_style.content_margin_left = 14
 	panel_style.content_margin_top = 12
 	panel_style.content_margin_right = 14
@@ -545,7 +572,7 @@ func _make_ui() -> void:
 	var labels := VBoxContainer.new()
 	top.add_child(labels)
 	var title := Label.new()
-	title.text = "ULTIMATE TASHKENT RP  |  V1.1 SEDAN REDESIGN"
+	title.text = "ULTIMATE TASHKENT RP  |  CITY LIFE"
 	title.add_theme_font_size_override("font_size",20)
 	labels.add_child(title)
 	coins_label = Label.new()
@@ -553,6 +580,7 @@ func _make_ui() -> void:
 	speed_label = Label.new()
 	labels.add_child(speed_label)
 	fps_label = Label.new()
+	fps_label.visible = OS.is_debug_build()
 	labels.add_child(fps_label)
 	navigation_label = Label.new()
 	labels.add_child(navigation_label)
@@ -566,9 +594,20 @@ func _make_ui() -> void:
 	mission_label.custom_minimum_size = Vector2(365, 0)
 	labels.add_child(mission_label)
 	information = Label.new()
-	information.text = "WASD - harakat  |  E - mashina  |  SHIFT - yugurish"
+	information.text = "WASD: harakat  |  E: amal  |  Q: taslim/buyruq  |  G: qurol"
 	information.add_theme_font_size_override("font_size",14)
 	labels.add_child(information)
+	var jobs := HBoxContainer.new()
+	labels.add_child(jobs)
+	for kind in ["courier", "taxi"]:
+		var button := Button.new()
+		button.text = "KURYER" if kind == "courier" else "TAKSI"
+		jobs.add_child(button)
+		button.pressed.connect(_select_job.bind(kind))
+	var fuel_button := Button.new()
+	fuel_button.text = "YOQILG‘I (F)"
+	jobs.add_child(fuel_button)
+	fuel_button.pressed.connect(_refuel)
 	# Persistent top-right radar with a full-screen map on M.
 	var map_script: Script = load("res://scripts/city_map.gd")
 	city_map = Control.new()
@@ -617,7 +656,7 @@ func _make_ui() -> void:
 	action_button.position = Vector2(92,30)
 	action_button.custom_minimum_size = Vector2(128,65)
 	right_base.add_child(action_button)
-	action_button.pressed.connect(_toggle_car)
+	action_button.pressed.connect(_interact)
 	var note := Label.new()
 	note.text = "Android: chap tugmalar - harakat, ong ekran - kamera"
 	note.set_anchors_preset(Control.PRESET_BOTTOM_LEFT)
@@ -650,10 +689,25 @@ func _toggle_car() -> void:
 		car_angle = car.rotation.y
 	_update_status()
 
+func _interact() -> void:
+	if rp and rp.has_method("interact") and rp.interact():
+		return
+	_toggle_car()
+
 func _input(event: InputEvent) -> void:
+	if event is InputEventKey and get_viewport().gui_get_focus_owner() is LineEdit:
+		return
 	if event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode == KEY_F:
+			_refuel()
 		if event.keycode == KEY_E:
-			_toggle_car()
+			_interact()
+		if event.keycode == KEY_Q and rp:
+			rp.surrender_or_order()
+		if event.keycode == KEY_G and rp:
+			rp.fire_weapon()
+		if event.keycode == KEY_R and rp:
+			rp.start_bank_robbery()
 		if event.keycode == KEY_M:
 			_toggle_map()
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_RIGHT:
@@ -677,12 +731,16 @@ func _process(delta: float) -> void:
 	for npc in pedestrians:
 		var citizen: Node3D = npc["node"]
 		var heading: float = npc["direction"]
+		if bool(npc.get("surrendered", false)):
+			citizen.rotation.z = lerpf(citizen.rotation.z, 0.0, minf(delta*5.0,1.0))
+			continue
 		if float(npc["knocked"]) > 0.0:
 			npc["knocked"] = maxf(0.0,float(npc["knocked"])-delta)
 			citizen.rotation.z = lerpf(citizen.rotation.z,1.1,minf(delta*5.0,1.0))
 			continue
 		citizen.rotation.z = lerpf(citizen.rotation.z,0.0,minf(delta*5.0,1.0))
-		citizen.position.z += heading * float(npc["speed"]) * delta
+		var npc_speed: float = 4.4 if bool(npc.get("fleeing", false)) else float(npc["speed"])
+		citizen.position.z += heading * npc_speed * delta
 		if citizen.position.z > 137.0 or citizen.position.z < -137.0:
 			npc["direction"] = -heading
 			citizen.position.z = clampf(citizen.position.z,-137.0,137.0)
@@ -697,6 +755,10 @@ func _process(delta: float) -> void:
 		(npc["left_arm"] as Node3D).rotation.x = -swing*.75
 		(npc["right_arm"] as Node3D).rotation.x = swing*.75
 	_update_patrols(delta)
+	autosave_timer += delta
+	if autosave_timer >= 8.0:
+		autosave_timer = 0.0
+		_save_game()
 	hud_update_timer += delta
 	if hud_update_timer >= 0.3:
 		hud_update_timer = 0.0
@@ -710,8 +772,9 @@ func _process(delta: float) -> void:
 		map_overlay.call("update_navigation",current_pos,mission_target,car_angle if car_mode else player.rotation.y)
 		if wanted_label:
 			wanted_label.text = "QIDIRUV: %d/3  |  POLITSIYA" % wanted_level if wanted_level > 0 else "POLITSIYA: TINCH"
+			wanted_label.modulate = Color("ff6b6b") if wanted_level > 0 else Color("78e6ad")
 		if speed_label:
-			speed_label.text = "TEZLIK  %03d km/soat" % int(absf(car_velocity)*5.0) if car_mode else "PIYODA  •  WASD"
+			speed_label.text = "TEZLIK %03d km/soat | BAK %d%%" % [int(absf(car_velocity)*5.0), int(fuel)] if car_mode else "PIYODA  •  WASD"
 		if fps_label:
 			fps_label.text = "FPS: %d | Sedan Redesign" % Engine.get_frames_per_second()
 		if navigation_label:
@@ -788,18 +851,8 @@ func _update_patrols(delta: float) -> void:
 			if _clear_patrol_destination(destination,unit):
 				unit.position = destination
 			unit.rotation.y = atan2(-to_target.x,-to_target.z)
-	if nearest < (8.5 if car_mode else 4.9):
-		pursuit_time += delta
-		if pursuit_time > 2.5:
-			wanted_level = 0
-			wanted_timer = 0.0
-			pursuit_time = 0.0
-			car_velocity = 0.0
-			cash = maxi(0,cash-150)
-			_save_game()
-			_update_status()
-	else:
-		pursuit_time = 0.0
+	if rp and rp.has_method("update_police_response"):
+		rp.update_police_response(delta, nearest)
 	if wanted_timer <= 0.0:
 		wanted_level = 0
 
@@ -808,10 +861,14 @@ func _physics_process(delta: float) -> void:
 	forward -= float(Input.is_key_pressed(KEY_S) or Input.is_key_pressed(KEY_DOWN) or controls["back"])
 	var side := float(Input.is_key_pressed(KEY_D) or Input.is_key_pressed(KEY_RIGHT) or controls["right"])
 	side -= float(Input.is_key_pressed(KEY_A) or Input.is_key_pressed(KEY_LEFT) or controls["left"])
+	if get_viewport().gui_get_focus_owner() is LineEdit:
+		forward = 0.0
+		side = 0.0
 	var movement := Vector2(side,forward).normalized()
 	if car_mode:
 		# Arcade driving: W/S to accelerate or reverse, A/D to steer.
-		var target_speed := forward*DRIVE_SPEED
+		var target_speed := forward*DRIVE_SPEED if fuel > 0.0 else 0.0
+		fuel = maxf(0.0, fuel - absf(car_velocity)*delta*0.012)
 		car_velocity = move_toward(car_velocity,target_speed,delta*(12.0 if absf(forward)>0.01 else 19.0))
 		car_angle += side*delta*1.15*clampf(absf(car_velocity)/DRIVE_SPEED,0.15,1.0)*(1.0 if car_velocity>=0 else -1.0)
 		car.rotation.y = car_angle
@@ -822,7 +879,7 @@ func _physics_process(delta: float) -> void:
 		var segment_count: int = maxi(1,ceili(travel.length() / 0.8))
 		for segment_i in range(1,segment_count+1):
 			var candidate: Vector3 = from_position + travel * (float(segment_i)/float(segment_count))
-			if _blocked_for_vehicle(candidate) or _blocked_by_patrol(candidate,from_position):
+			if _blocked_for_vehicle(candidate) or _blocked_by_patrol(candidate,from_position) or (rp and rp.has_method("vehicle_blocked") and rp.vehicle_blocked(candidate, from_position, car)):
 				blocked = true
 				break
 		if blocked:
@@ -862,19 +919,53 @@ func _physics_process(delta: float) -> void:
 	var goal := focus + offset
 	camera.global_position = camera.global_position.lerp(goal,minf(delta*7.5,1.0))
 	camera.look_at(focus+Vector3(0,1.1,0),Vector3.UP)
-	if focus.distance_to(mission_target) < 9.0:
+	if player_role == "civilian" and focus.distance_to(mission_target) < 7.0:
+		_advance_job()
+
+func _select_job(kind: String) -> void:
+	if player_role != "civilian":
+		if save_label:
+			save_label.text = "Kuryer va taksi ishlari uchun FUQARO rolini tanlang"
+		return
+	job = kind
+	job_pickup = true
+	mission_target = DEPOT
+	mission_marker.position = mission_target + Vector3(0,4,0)
+	_save_game()
+	_update_status()
+
+func _advance_job() -> void:
+	if job == "taxi" and not car_mode:
+		return
+	if job_pickup:
+		job_pickup = false
+		mission_target = JOB_STOPS[mission_stage % JOB_STOPS.size()]
+	else:
+		cash += 400 if job == "taxi" else 250
 		mission_stage += 1
-		cash += 250
-		match mission_stage%3:
-			0: mission_target = Vector3(65,0,65)
-			1: mission_target = Vector3(-85,0,-65)
-			2: mission_target = Vector3(45,0,-45)
-		mission_marker.position = mission_target + Vector3(0,4,0)
-		_save_game()
-		_update_status()
+		job_pickup = true
+		mission_target = DEPOT
+	mission_marker.position = mission_target + Vector3(0,4,0)
+	_save_game()
+	_update_status()
+
+func _refuel() -> void:
+	var position_now: Vector3 = car.position
+	if Vector2(position_now.x - DEPOT.x, position_now.z - DEPOT.z).length() > 12.0:
+		save_label.text = "Yoqilg‘i uchun ish markaziga qayting (8, 16)"
+		return
+	var cost := ceili((100.0 - fuel) * 2.0)
+	if cash < cost:
+		save_label.text = "Yoqilg‘i uchun mablag‘ yetarli emas: %d so‘m" % cost
+		return
+	cash -= cost
+	fuel = 100.0
+	_save_game()
+	_update_status()
+	save_label.text = "Bak to‘ldirildi: %d so‘m" % cost
 
 func _save_game() -> void:
-	var data := {"cash":cash,"mission_stage":mission_stage,"mission_target":[mission_target.x,mission_target.y,mission_target.z]}
+	var data := {"fuel":fuel,"job":job,"job_pickup":job_pickup,"cash":cash,"mission_stage":mission_stage,"mission_target":[mission_target.x,mission_target.y,mission_target.z],"role":player_role,"health":player_health}
 	var f := FileAccess.open(SAVE_PATH,FileAccess.WRITE)
 	if f:
 		f.store_string(JSON.stringify(data))
@@ -890,7 +981,19 @@ func _load_game() -> void:
 	if typeof(parsed) != TYPE_DICTIONARY:
 		return
 	cash = maxi(0,int(parsed.get("cash",500)))
+	fuel = clampf(float(parsed.get("fuel",100.0)),0.0,100.0)
+	job = str(parsed.get("job","courier"))
+	if job not in ["courier", "taxi"]:
+		job = "courier"
+	job_pickup = bool(parsed.get("job_pickup",true))
+	player_role = str(parsed.get("role", "civilian"))
+	if player_role not in ["civilian", "police", "thief"]:
+		player_role = "civilian"
+	player_health = clampi(int(parsed.get("health", 100)), 1, 100)
 	mission_stage = maxi(0,int(parsed.get("mission_stage",0)))
+	if not parsed.has("job"):
+		mission_target = DEPOT
+		return
 	var target = parsed.get("mission_target",[])
 	if typeof(target) == TYPE_ARRAY and target.size()==3:
 		mission_target = Vector3(float(target[0]),float(target[1]),float(target[2]))
@@ -899,6 +1002,9 @@ func _update_status() -> void:
 	if coins_label:
 		coins_label.text = "Balans: %s som  |  %s" % [str(cash), "MASHINADA" if car_mode else "PIYODA"]
 	if mission_label:
-		mission_label.text = "Topshiriq #%d: yashil belgilangan manzilga boring — mukofot 250 so‘m" % (mission_stage+1)
+		if rp and rp.has_method("objective_text"):
+			mission_label.text = rp.objective_text()
+		else:
+			mission_label.text = "%s: %s | Mukofot: %d so‘m" % ["TAKSI" if job == "taxi" else "KURYER", "Markazdan yo‘lovchi oling (mashinada)" if job == "taxi" and job_pickup else ("Markazdan paket oling" if job_pickup else "Belgilangan manzilga yetkazing"), 400 if job == "taxi" else 250]
 	if action_button:
 		action_button.text = "E  TUSHISH" if car_mode else "E  MASHINA"
